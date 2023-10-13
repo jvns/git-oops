@@ -109,6 +109,13 @@ class Snapshot:
 
         return cls(id, timestamp, description, refs)
 
+    @staticmethod
+    def load_all(conn):
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM snapshots ORDER BY id DESC")
+        snapshot_ids = [row[0] for row in cursor.fetchall()]
+        return [Snapshot.load(conn, snapshot_id) for snapshot_id in snapshot_ids]
+
     def restore(self):
         # Restore the snapshot by checking out each ref to the respective commit hash
         for ref_name, commit_hash in self.refs:
@@ -146,7 +153,7 @@ def get_reflog_message():
     return reflog_message
 
 
-def install_hooks():
+def install_hooks(path="git_undo.py"):
     base_git_dir = subprocess.check_output(
         ["git", "rev-parse", "--show-toplevel"], universal_newlines=True
     ).strip()
@@ -167,10 +174,10 @@ def install_hooks():
         hook_path = os.path.join(base_git_dir, ".git", "hooks", hook)
         with open(hook_path, "w") as hook_file:
             hook_file.write(
-                """#!/bin/sh
+                f"""#!/bin/sh
 DIR=$(git rev-parse --show-toplevel)
 cd $DIR || exit
-python3 git-undo.py record || echo "error recording snapshot"
+python3 {path} record || echo "error recording snapshot"
 """
             )
         os.chmod(hook_path, 0o755)
@@ -322,6 +329,16 @@ def restore_snapshot(conn, snapshot_id):
         print("Error restoring snapshot:", e)
     except ValueError as e:
         print("Error restoring snapshot:", e)
+
+
+def open_memory_db():
+    conn = sqlite3.connect(":memory:")
+    cursor = conn.cursor()
+    cursor.execute(CREATE_SNAPSHOTS)
+    cursor.execute(CREATE_REFS)
+    cursor.execute(CREATE_HEAD)
+    conn.commit()
+    return conn
 
 
 def open_db():
