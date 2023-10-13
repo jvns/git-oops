@@ -95,7 +95,28 @@ def record_snapshot(conn, description=None):
         return None
 
 
+def index_clean():
+    try:
+        # Use the 'git status' command to check the status of the working directory and index
+        git_status_command = "git status --porcelain"
+        process = subprocess.Popen(
+            git_status_command, shell=True, stdout=subprocess.PIPE
+        )
+        output, _ = process.communicate()
+
+        # If the 'git status' command returns an empty string, both the working directory and index are clean
+        return len(output.decode("utf-8").strip()) == 0
+
+    except subprocess.CalledProcessError as e:
+        print("Error checking if the index is clean:", e)
+        return False
+
+
 def restore_snapshot(conn, snapshot_id):
+    if not index_clean():
+        print("Error: The index is not clean. Please commit or stash your changes.")
+        return
+
     cursor = conn.cursor()
     try:
         cursor.execute(
@@ -132,7 +153,7 @@ def restore_snapshot(conn, snapshot_id):
         head_data = cursor.fetchone()
 
         if head_data:
-            head_ref = head_data[1]
+            head_ref = head_data[0]
             git_command = "git symbolic-ref HEAD {}".format(head_ref)
             subprocess.check_output(git_command, shell=True)
 
