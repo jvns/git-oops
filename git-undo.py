@@ -50,6 +50,40 @@ def get_reflog_message():
     return reflog_message
 
 
+def install_hooks():
+    base_git_dir = subprocess.check_output(
+        ["git", "rev-parse", "--show-toplevel"], universal_newlines=True
+    ).strip()
+
+    # List of Git hooks to install
+    hooks_to_install = [
+        "post-applypatch",
+        "post-checkout",
+        "post-commit",
+        "post-merge",
+        "post-rewrite",
+        "pre-auto-gc",
+        "reference-transaction",
+    ]
+
+    # Iterate through the list of hooks and install them
+    for hook in hooks_to_install:
+        hook_path = os.path.join(base_git_dir, ".git", "hooks", hook)
+        with open(hook_path, "w") as hook_file:
+            hook_file.write(
+                """#!/bin/sh
+DIR=$(git rev-parse --show-toplevel)
+cd $DIR || exit
+python3 git-undo.py record || echo "error recording snapshot"
+"""
+            )
+        os.chmod(hook_path, 0o755)
+
+
+if __name__ == "__main__":
+    install_hooks()
+
+
 def record_snapshot(conn, description=None):
     try:
         description = get_reflog_message()
@@ -225,6 +259,7 @@ def parse_args():
 
     # Create a subparser for the 'undo' subcommand
     undo_parser = record_parser.add_parser("undo", help="Undo the last snapshot")
+    init_parser = record_parser.add_parser("init", help="Install hooks")
 
     restore_parser = record_parser.add_parser(
         "restore", help="Restore a specific snapshot"
@@ -238,6 +273,8 @@ def parse_args():
         record_snapshot(conn)
     elif args.subcommand == "undo":
         undo_snapshot()
+    elif args.subcommand == "init":
+        install_hooks()
     elif args.subcommand == "restore":
         if args.snapshot_id:
             conn = open_db()
