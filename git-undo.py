@@ -24,6 +24,23 @@ CREATE TABLE IF NOT EXISTS refs (
 );
 """
 
+CREATE_HEAD = """
+CREATE TABLE IF NOT EXISTS head (
+    id INTEGER PRIMARY KEY,
+    snapshot_id INTEGER NOT NULL,  -- Foreign key to Snapshot
+    ref_name TEXT NOT NULL,    -- Commit hash for the ref at this snapshot
+    FOREIGN KEY (snapshot_id) REFERENCES Snapshot(id)
+);
+"""
+
+
+def get_head():
+    head_command = "git symbolic-ref HEAD"
+    process = subprocess.Popen(head_command, shell=True, stdout=subprocess.PIPE)
+    output, _ = process.communicate()
+    head_ref = output.decode("utf-8").strip()
+    return head_ref
+
 
 # Function to record a snapshot of all refs from a Git repository
 def record_snapshot(conn, description=None):
@@ -47,11 +64,22 @@ def record_snapshot(conn, description=None):
         output, _ = process.communicate()
         refs = [line.decode("utf-8").strip().split() for line in output.splitlines()]
 
+        # get HEAD
+        git_command = "git rev-parse HEAD"
+        process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
+        output, _ = process.communicate()
+        head = output.decode("utf-8").strip()
+
         for ref_name, commit_hash in refs:
             cursor.execute(
                 "INSERT INTO refs (snapshot_id, ref_name, commit_hash) VALUES (?, ?, ?)",
                 (snapshot_id, ref_name, commit_hash),
             )
+
+        cursor.execute(
+            "INSERT INTO head (snapshot_id, ref_name) VALUES (?, ?)",
+            (snapshot_id, get_head()),
+        )
 
         # Commit the changes and close the connection
         conn.commit()
@@ -65,6 +93,65 @@ def record_snapshot(conn, description=None):
     except subprocess.CalledProcessError as e:
         print("Error recording snapshot:", e)
         return None
+
+
+def restore_snapshot(conn, snapshot_id):
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT timestamp, description FROM snapshots WHERE id = ?", (snapshot_id,)
+        )
+        snapshot_data = cursor.fetchone()
+
+        if not snapshot_data:
+            print("Snapshot with ID {} not found.".format(snapshot_id))
+            return
+
+        timestamp, description = snapshot_data
+
+        # Get the list of all refs using git for-each-ref
+        git_command = "git for-each-ref --format='%(refname)'"
+        process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
+        output, _ = process.communicate()
+        all_refs = [line.decode("utf-8").strip() for line in output.splitlines()]
+
+        # Restore the snapshot by checking out each ref to the respective commit hash
+        cursor.execute(
+            "SELECT ref_name, commit_hash FROM refs WHERE snapshot_id = ?",
+            (snapshot_id,),
+        )
+        refs_data = cursor.fetchall()
+
+        for ref_name, commit_hash in refs_data:
+            git_command = "git update-ref {} {}".format(ref_name, commit_hash)
+            subprocess.run(git_command, shell=True)
+
+        cursor.execute(
+            "SELECT ref_name FROM head WHERE snapshot_id = ?", (snapshot_id,)
+        )
+        head_data = cursor.fetchone()
+
+        if head_data:
+            head_ref = head_data[1]
+            git_command = "git symbolic-ref HEAD {}".format(head_ref)
+            subprocess.check_output(git_command, shell=True)
+
+        current_ref_names = set([x[0] for x in refs_data])
+        for ref in all_refs:
+            if ref not in current_ref_names:
+                git_command = "git update-ref -d {}".format(ref)
+                subprocess.check_output(git_command, shell=True)
+
+        print(
+            "Restored snapshot (ID: {}) created at {} with description: {}".format(
+                snapshot_id, timestamp, description
+            )
+        )
+
+    except sqlite3.Error as e:
+        print("Error restoring snapshot:", e)
+    except subprocess.CalledProcessError as e:
+        print("Error restoring snapshot:", e)
 
 
 def open_db():
@@ -82,6 +169,7 @@ def open_db():
     cursor = conn.cursor()
     cursor.execute(CREATE_SNAPSHOTS)
     cursor.execute(CREATE_REFS)
+    cursor.execute(CREATE_HEAD)
     cursor.execute("PRAGMA journal_mode=WAL")
     conn.commit()
 
@@ -98,6 +186,11 @@ def parse_args():
     # Create a subparser for the 'undo' subcommand
     undo_parser = record_parser.add_parser("undo", help="Undo the last snapshot")
 
+    restore_parser = record_parser.add_parser(
+        "restore", help="Restore a specific snapshot"
+    )
+    restore_parser.add_argument("snapshot_id", type=int, help="Snapshot ID to restore")
+
     args = parser.parse_args()
 
     if args.subcommand == "record":
@@ -105,6 +198,12 @@ def parse_args():
         record_snapshot(conn)
     elif args.subcommand == "undo":
         undo_snapshot()
+    elif args.subcommand == "restore":
+        if args.snapshot_id:
+            conn = open_db()
+            restore_snapshot(conn, args.snapshot_id)
+        else:
+            print("Snapshot ID is required for the 'restore' subcommand.")
     else:
         print("Use 'record' or 'undo' as subcommands.")
 
