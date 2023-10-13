@@ -42,8 +42,21 @@ def get_head():
     return head_ref
 
 
-# Function to record a snapshot of all refs from a Git repository
+def get_reflog_message():
+    git_command = "git reflog --format=%gs -n 1 HEAD"
+    process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
+    output, _ = process.communicate()
+    reflog_message = output.decode("utf-8").strip()
+    return reflog_message
+
+
 def record_snapshot(conn, description=None):
+    try:
+        description = get_reflog_message()
+    except subprocess.CalledProcessError as e:
+        print("Error getting reflog message:", e)
+        return None
+
     cursor = conn.cursor()
     try:
         # Connect to the SQLite database
