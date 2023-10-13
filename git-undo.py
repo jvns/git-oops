@@ -167,8 +167,12 @@ def restore_snapshot(conn, snapshot_id):
 
         if head_data:
             head_ref = head_data[0]
-            git_command = "git symbolic-ref HEAD {}".format(head_ref)
-            subprocess.check_output(git_command, shell=True)
+            reason = "[git-undo] restored from snapshot {}".format(snapshot_id)
+            subprocess.check_call(
+                ["git", "symbolic-ref", "HEAD", head_ref, "-m", reason]
+            )
+        else:
+            raise ValueError("No head ref found for snapshot {}".format(snapshot_id))
 
         current_ref_names = set([x[0] for x in refs_data])
         for ref in all_refs:
@@ -185,6 +189,8 @@ def restore_snapshot(conn, snapshot_id):
     except sqlite3.Error as e:
         print("Error restoring snapshot:", e)
     except subprocess.CalledProcessError as e:
+        print("Error restoring snapshot:", e)
+    except ValueError as e:
         print("Error restoring snapshot:", e)
 
 
