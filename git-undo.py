@@ -34,6 +34,102 @@ CREATE TABLE IF NOT EXISTS head (
 """
 
 
+class Snapshot:
+    def __init__(self, id, timestamp, description, refs):
+        self.id = id
+        self.timestamp = timestamp
+        self.description = description
+        self.refs = refs
+
+    def __eq__(self, other):
+        if isinstance(other, Snapshot):
+            return (
+                self.id == other.id
+                and self.timestamp == other.timestamp
+                and self.description == other.description
+                and self.refs == other.refs
+            )
+
+    @classmethod
+    def record(cls):
+        # Capture the snapshot, including all refs and HEAD
+        git_command = "git for-each-ref --format='%(refname) %(objectname)'"
+        process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
+        output, _ = process.communicate()
+        refs = [line.decode("utf-8").strip().split() for line in output.splitlines()]
+
+        head_command = "git symbolic-ref HEAD"
+        process = subprocess.Popen(head_command, shell=True, stdout=subprocess.PIPE)
+        output, _ = process.communicate()
+        head_ref = output.decode("utf-8").strip()
+
+        snapshot = cls(0, "", "", refs + [("HEAD", head_ref)])
+        return snapshot
+
+    def save(self, conn):
+        # Save the snapshot to the database
+        cursor = conn.cursor()
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute(
+            "INSERT INTO snapshots (timestamp, description) VALUES (?, ?)",
+            (timestamp, self.description),
+        )
+        snapshot_id = cursor.lastrowid
+        self.id = snapshot_id
+        for ref_name, commit_hash in self.refs:
+            cursor.execute(
+                "INSERT INTO refs (snapshot_id, ref_name, commit_hash) VALUES (?, ?, ?)",
+                (snapshot_id, ref_name, commit_hash),
+            )
+        cursor.execute(
+            "INSERT INTO head (snapshot_id, ref_name) VALUES (?, ?)",
+            (snapshot_id, self.refs[-1][1]),
+        )
+        conn.commit()
+
+    @classmethod
+    def load(cls, conn, snapshot_id):
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, timestamp, description FROM snapshots WHERE id = ?",
+            (snapshot_id,),
+        )
+        snapshot_data = cursor.fetchone()
+
+        if snapshot_data is None:
+            return None
+
+        id, timestamp, description = snapshot_data
+        cursor.execute(
+            "SELECT ref_name, commit_hash FROM refs WHERE snapshot_id = ?",
+            (snapshot_id,),
+        )
+        refs_data = cursor.fetchall()
+        refs = [(ref[0], ref[1]) for ref in refs_data]
+
+        return cls(id, timestamp, description, refs)
+
+    def restore(self):
+        # Restore the snapshot by checking out each ref to the respective commit hash
+        for ref_name, commit_hash in self.refs:
+            git_command = f"git update-ref {ref_name} {commit_hash}"
+            subprocess.run(git_command, shell=True)
+        head_ref = self.refs[-1][0]
+        reason = "[git-undo] restored from snapshot {}".format(self.id)
+        subprocess.check_call(["git", "symbolic-ref", "HEAD", head_ref, "-m", reason])
+        current_refs = [ref[0] for ref in self.refs]
+        all_refs = [
+            line.decode("utf-8").strip()
+            for line in subprocess.check_output(
+                "git for-each-ref --format='%(refname)'", shell=True
+            ).splitlines()
+        ]
+        for ref in all_refs:
+            if ref not in current_refs:
+                git_command = f"git update-ref -d {ref}"
+                subprocess.check_output(git_command, shell=True)
+
+
 def get_head():
     head_command = "git symbolic-ref HEAD"
     process = subprocess.Popen(head_command, shell=True, stdout=subprocess.PIPE)
