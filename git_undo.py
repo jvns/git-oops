@@ -221,6 +221,7 @@ def install_hooks(path="git_undo.py"):
     hooks_to_install = [
         "post-applypatch",
         "post-checkout",
+        "pre-commit",
         "post-commit",
         "post-merge",
         "post-rewrite",
