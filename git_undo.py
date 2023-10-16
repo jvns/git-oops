@@ -85,25 +85,20 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
 
 
 def make_commit(tree):
-    undo_commit = read_branch("refs/heads/git-undo-history")
-    if undo_commit:
-        commit = check_output(
-            [
-                "git",
-                "commit-tree",
-                tree,
-                "-m",
-                f"index/workdir",
-                "-p",
-                undo_commit,
-            ]
-        )
-        check_output(["git", "branch", "-f", "git-undo-history", commit])
-    else:
-        commit = check_output(["git", "commit-tree", tree, "-m", "index snapshot"])
-
-        check_output(["git", "branch", "git-undo-history", commit])
-    return commit
+    date = datetime.datetime(1970, 1, 1, 0, 0, 0)
+    return check_output(
+        [
+            "git",
+            "commit-tree",
+            tree,
+            "-m",
+            f"index/workdir",
+        ],
+        env={
+            "GIT_AUTHOR_DATE": date.isoformat(),
+            "GIT_COMMITTER_DATE": date.isoformat(),
+        },
+    )
 
 
 def snapshot_index():
