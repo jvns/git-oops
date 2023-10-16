@@ -18,6 +18,11 @@ Refs:
 """
 
 
+def check_output(cmd):
+    print("Running: '{}'".format(" ".join(cmd)))
+    return subprocess.check_output(cmd, shell=True).decode("utf-8").strip()
+
+
 def snapshot_head():
     head_command = "git symbolic-ref HEAD"
     process = subprocess.Popen(head_command, shell=True, stdout=subprocess.PIPE)
@@ -26,41 +31,37 @@ def snapshot_head():
 
 
 def snapshot_refs():
-    git_command = "git for-each-ref --format='%(refname) %(objectname)'"
-    process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
-    output, _ = process.communicate()
-    return [line.decode("utf-8").strip().split() for line in output.splitlines()]
+    output = check_output(["git", "for-each-ref", "--format=%(refname) %(objectname)"])
+    return [line.strip().split() for line in output.splitlines()]
 
 
-def add_undo_history(tree):
+def add_undo_history(tree, snapshot_type):
     undo_commit = read_branch("refs/heads/git-undo-history")
     if undo_commit:
         print("branch exists")
-        commit = (
-            subprocess.check_output(
-                ["git", "commit-tree", tree, "-m", "index snapshot", "-p", undo_commit]
-            )
-            .decode("utf-8")
-            .strip()
+        commit = check_output(
+            [
+                "git",
+                "commit-tree",
+                tree,
+                "-m",
+                f"{snapshot_type} snapshot",
+                "-p",
+                undo_commit,
+            ]
         )
         subprocess.check_call(["git", "update-ref", "git-undo-history", commit])
     else:
         print("creating branch")
-        commit = (
-            subprocess.check_output(
-                ["git", "commit-tree", tree, "-m", "index snapshot"]
-            )
-            .decode("utf-8")
-            .strip()
-        )
+        commit = check_output(["git", "commit-tree", tree, "-m", "index snapshot"])
 
         subprocess.check_call(["git", "branch", "git-undo-history", commit])
     return commit
 
 
 def snapshot_index():
-    tree = subprocess.check_output(["git", "write-tree"]).strip()
-    return add_undo_history(tree)
+    tree = check_output(["git", "write-tree"])
+    return add_undo_history(tree, "index")
 
 
 def snapshot_workdir(index_commit):
@@ -72,8 +73,8 @@ def snapshot_workdir(index_commit):
     """
 
     subprocess.check_call(["git", "add", "-u"])
-    tree = subprocess.check_output(["git", "write-tree"]).strip()
-    return add_undo_history(tree)
+    tree = check_output(["git", "write-tree"])
+    return add_undo_history(tree, "workdir")
 
 
 class Snapshot:
@@ -126,16 +127,14 @@ class Snapshot:
         # get most recent commit id from `git log git-undo`
         # use plumbing command
         git_command = "git log git-undo --format=%H -n 1"
-        output = subprocess.check_output(git_command, shell=True)
-        parent_commit = output.decode("utf-8").strip()
+        parent_commit = check_output(git_command)
         message = self.format()
 
     @classmethod
     def load(cls, commit_id):
         # read commit message from id
         git_command = f"git log {commit_id} --format=%B -n 1"
-        output = subprocess.check_output(git_command, shell=True)
-        message = output.decode("utf-8").strip()
+        message = check_output(git_command)
 
         # parse message
         lines = message.splitlines()
@@ -194,15 +193,15 @@ class Snapshot:
         subprocess.check_call(["git", "symbolic-ref", "HEAD", head_ref, "-m", reason])
         current_refs = [ref[0] for ref in self.refs]
         all_refs = [
-            line.decode("utf-8").strip()
-            for line in subprocess.check_output(
-                "git for-each-ref --format='%(refname)'", shell=True
+            line.strip()
+            for line in check_output(
+                "git for-each-ref --format='%(refname)'"
             ).splitlines()
         ]
         for ref in all_refs:
             if ref not in current_refs:
                 git_command = f"git update-ref -d {ref}"
-                subprocess.check_output(git_command, shell=True)
+                subprocess.check_call(git_command)
 
 
 def get_head():
@@ -223,11 +222,7 @@ def get_reflog_message():
 
 def read_branch(branch):
     try:
-        return (
-            subprocess.check_output(["git", "rev-parse", branch])
-            .decode("utf-8")
-            .strip()
-        )
+        return check_output(["git", "rev-parse", branch])
     except subprocess.CalledProcessError:
         return None
 
