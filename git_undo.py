@@ -330,8 +330,6 @@ def restore_snapshot(conn, snapshot_id):
             )
         )
 
-    except sqlite3.Error as e:
-        print("Error restoring snapshot:", e)
     except subprocess.CalledProcessError as e:
         print("Error restoring snapshot:", e)
     except ValueError as e:
