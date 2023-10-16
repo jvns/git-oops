@@ -41,7 +41,45 @@ def snapshot_refs():
     return [line.strip().split() for line in output.splitlines()]
 
 
-def add_undo_history(tree, snapshot_type):
+def add_undo_entry(tree, message, index_commit, workdir_commit):
+    undo_commit = read_branch("refs/heads/git-undo")
+    if undo_commit:
+        commit = check_output(
+            [
+                "git",
+                "commit-tree",
+                tree,
+                "-m",
+                message,
+                "-p",
+                undo_commit,
+                "-p",
+                index_commit,
+                "-p",
+                workdir_commit,
+            ]
+        )
+        check_output(["git", "branch", "-f", "git-undo", commit])
+    else:
+        commit = check_output(
+            [
+                "git",
+                "commit-tree",
+                tree,
+                "-m",
+                message,
+                "-p",
+                index_commit,
+                "-p",
+                workdir_commit,
+            ]
+        )
+
+        check_output(["git", "branch", "git-undo", commit])
+    return commit
+
+
+def make_commit(tree, snapshot_type):
     undo_commit = read_branch("refs/heads/git-undo-history")
     if undo_commit:
         commit = check_output(
@@ -65,44 +103,59 @@ def add_undo_history(tree, snapshot_type):
 
 def snapshot_index():
     tree = check_output("git write-tree")
-    return add_undo_history(tree, "index")
+    return tree, make_commit(tree, "index")
 
 
 def snapshot_workdir(index_commit):
     check_output("git add -u")
     tree = check_output("git write-tree")
     check_output(["git", "read-tree", index_commit])
-    return add_undo_history(tree, "workdir")
+    return tree, make_commit(tree, "workdir")
 
 
 class Snapshot:
-    def __init__(self, id, message, refs, head, index, workdir):
+    def __init__(
+        self,
+        id,
+        message,
+        refs,
+        head,
+        index_tree,
+        workdir_tree,
+        index_commit,
+        workdir_commit,
+    ):
         self.id = id
         self.message = message
         self.refs = refs
         self.head = head
-        self.index = index
-        self.workdir = workdir
+        self.index_tree = index_tree
+        self.workdir_tree = workdir_tree
+        self.index_commit = index_commit
+        self.workdir_commit = workdir_commit
 
     def __eq__(self, other):
         if isinstance(other, Snapshot):
             return (
                 self.refs == other.refs
                 and self.head == other.head
-                and self.index == other.index
-                and self.workdir == other.workdir
+                and self.index_commit == other.index_commit
+                and self.workdir_comit == other.workdir_commit
             )
 
     @classmethod
     def record(cls):
-        index = snapshot_index()
+        index_tree, index_commit = snapshot_index()
+        workdir_tree, workdir_commit = snapshot_workdir(index_commit)
         return cls(
             id=None,
             message=get_reflog_message(),
             refs=snapshot_refs(),
             head=snapshot_head(),
-            index=index,
-            workdir=snapshot_workdir(index),
+            index_commit=index_commit,
+            workdir_commit=workdir_commit,
+            index_tree=index_tree,
+            workdir_tree=workdir_tree,
         )
 
     def format(self):
@@ -114,19 +167,20 @@ class Snapshot:
                 f"Message: {self.message}",
                 # todo: add undo
                 f"HEAD: {self.head}",
-                f"Index: {self.index}",
-                f"Workdir: {self.workdir}",
+                f"Index: {self.index_commit}",
+                f"Workdir: {self.workdir_commit}",
                 f"Refs:",
                 *[f"{ref}: {sha1}" for ref, sha1 in self.refs],
             ]
         )
 
-    def save(self, conn):
-        # get most recent commit id from `git log git-undo`
-        # use plumbing command
-        git_command = "git log git-undo --format=%H -n 1"
-        parent_commit = check_output(git_command)
-        message = self.format()
+    def save(self):
+        add_undo_entry(
+            message=self.format(),
+            tree=self.workdir_tree,
+            index_commit=self.index_commit,
+            workdir_commit=self.workdir_commit,
+        )
 
     @classmethod
     def load(cls, commit_id):
@@ -267,6 +321,7 @@ if __name__ == "__main__":
 def record_snapshot():
     snapshot = Snapshot.record()
     print(snapshot.format())
+    snapshot.save()
 
 
 def index_clean():
