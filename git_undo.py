@@ -332,7 +332,6 @@ if __name__ == "__main__":
 
 def record_snapshot():
     snapshot = Snapshot.record()
-    print(snapshot.format())
     snapshot.save()
 
 
