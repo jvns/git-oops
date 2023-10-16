@@ -20,10 +20,10 @@ Refs:
 
 def check_output(cmd):
     is_shell = type(cmd) is str
-    if is_shell:
-        print(f"Running command: '{cmd}'")
-    else:
-        print(f"running command: '{' '.join(cmd)}'")
+    # if is_shell:
+    #    print(f"Running command: '{cmd}'")
+    # else:
+    #    print(f"running command: '{' '.join(cmd)}'")
     return subprocess.check_output(cmd, shell=is_shell).decode("utf-8").strip()
 
 
