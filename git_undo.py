@@ -38,7 +38,12 @@ def snapshot_head():
 
 def snapshot_refs():
     output = check_output(["git", "for-each-ref", "--format=%(refname) %(objectname)"])
-    return [line.strip().split() for line in output.splitlines()]
+    refs = [line.strip().split() for line in output.splitlines()]
+    # remove any remote refs
+    refs = [ref for ref in refs if not ref[0].startswith("refs/remotes/")]
+    # remove any git-undo refs
+    refs = [ref for ref in refs if not ref[0].startswith("refs/heads/git-undo")]
+    return refs
 
 
 def add_undo_entry(tree, message, index_commit, workdir_commit):
