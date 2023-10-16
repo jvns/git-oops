@@ -22,7 +22,7 @@ def snapshot_head():
     head_command = "git symbolic-ref HEAD"
     process = subprocess.Popen(head_command, shell=True, stdout=subprocess.PIPE)
     output, _ = process.communicate()
-    head_ref = output.decode("utf-8").strip()
+    return output.decode("utf-8").strip()
 
 
 def snapshot_refs():
@@ -38,9 +38,11 @@ def snapshot_index():
     git commit-tree TREE -m "msg"
     """
     tree = subprocess.check_output(["git", "write-tree"]).strip()
-    commit = subprocess.check_output(
-        ["git", "commit-tree", tree, "-m", "index snapshot"]
-    ).strip()
+    commit = (
+        subprocess.check_output(["git", "commit-tree", tree, "-m", "index snapshot"])
+        .decode("utf-8")
+        .strip()
+    )
     return commit
 
 
@@ -54,17 +56,20 @@ def snapshot_workdir(index_commit):
 
     subprocess.check_call(["git", "add", "-u"])
     tree = subprocess.check_output(["git", "write-tree"]).strip()
-    commit = subprocess.check_output(
-        ["git", "commit-tree", tree, "-p", index_commit, "-m", "workdir snapshot"]
-    ).strip()
+    commit = (
+        subprocess.check_output(
+            ["git", "commit-tree", tree, "-p", index_commit, "-m", "workdir snapshot"]
+        )
+        .decode("utf-8")
+        .strip()
+    )
     # subprocess.check_call(["git", "restore", "-s", index_commit, "."])
     return commit
 
 
 class Snapshot:
-    def __init__(self, id, timestamp, message, refs, head, index, workdir):
+    def __init__(self, id, message, refs, head, index, workdir):
         self.id = id
-        self.timestamp = timestamp
         self.message = message
         self.refs = refs
         self.head = head
@@ -85,7 +90,6 @@ class Snapshot:
         index = snapshot_index()
         return cls(
             id=None,
-            timestamp=datetime.datetime.now(),
             message=get_reflog_message(),
             refs=snapshot_refs(),
             head=snapshot_head(),
@@ -244,7 +248,8 @@ if __name__ == "__main__":
 
 
 def record_snapshot():
-    Snapshot.record()
+    snapshot = Snapshot.record()
+    print(snapshot.format())
 
 
 def index_clean():
