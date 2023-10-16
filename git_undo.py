@@ -57,7 +57,7 @@ def snapshot_workdir(index_commit):
     commit = subprocess.check_output(
         ["git", "commit-tree", tree, "-p", index_commit, "-m", "workdir snapshot"]
     ).strip()
-    subprocess.check_call(["git", "restore", "--staged", index_commit])
+    subprocess.check_call(["git", "restore", "--staged", "--from", index_commit, "."])
     return commit
 
 
