@@ -174,7 +174,6 @@ class Snapshot:
         return cls(
             id=commit_id,
             message=message,
-            timestamp=timestamp,
             refs=refs,
             head=head,
             index=index,
