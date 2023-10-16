@@ -399,7 +399,6 @@ class LockFile:
             ["git", "rev-parse", "--show-toplevel"], universal_newlines=True
         ).strip()
         self.lockfile_path = os.path.join(git_dir, ".git", "git-undo.lock")
-        print(self.lockfile_path)
 
     def __enter__(self):
         if os.path.exists(self.lockfile_path):
