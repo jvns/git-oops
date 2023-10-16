@@ -236,7 +236,7 @@ def install_hooks(path="git_undo.py"):
                 f"""#!/bin/sh
 DIR=$(git rev-parse --show-toplevel)
 cd $DIR || exit
-python3 {path} record || echo "error recording snapshot"
+python3 {path} record || echo "error recording snapshot in {hook}"
 """
             )
         os.chmod(hook_path, 0o755)
