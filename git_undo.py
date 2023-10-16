@@ -175,8 +175,20 @@ class Snapshot:
         )
 
     def save(self):
+
+        message = self.format()
+
+        last_commit = read_branch("refs/heads/git-undo")
+        if last_commit:
+            last_message = check_output(
+                ["git", "log", "-1", "--format=%B", last_commit]
+            )
+            if last_message == message:
+                print("No changes to save")
+                return
+
         add_undo_entry(
-            message=self.format(),
+            message=message,
             tree=self.workdir_tree,
             index_commit=self.index_commit,
             workdir_commit=self.workdir_commit,
