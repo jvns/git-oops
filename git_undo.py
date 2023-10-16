@@ -48,6 +48,7 @@ def snapshot_refs():
 
 def add_undo_entry(tree, message, index_commit, workdir_commit):
     undo_commit = read_branch("refs/heads/git-undo")
+    env = {"GIT_AUTHOR_NAME": "git-undo", "GIT_AUTHOR_EMAIL": "undo@example.com"}
     if undo_commit:
         commit = check_output(
             [
@@ -63,7 +64,7 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
                 "-p",
                 workdir_commit,
             ],
-            env={"GIT_AUTHOR_NAME": "git-undo", "GIT_AUTHOR_EMAIL": "undo@example.com"},
+            env=env,
             stderr=subprocess.PIPE,
         )
         check_output(["git", "branch", "-f", "git-undo", commit])
@@ -80,7 +81,7 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
                 "-p",
                 workdir_commit,
             ],
-            env={"GIT_AUTHOR_NAME": "git-undo", "GIT_AUTHOR_EMAIL": "undo@example.com"},
+            env=env,
             stderr=subprocess.PIPE,
         )
 
