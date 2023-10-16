@@ -32,18 +32,33 @@ def snapshot_refs():
     return [line.decode("utf-8").strip().split() for line in output.splitlines()]
 
 
-def snapshot_index():
-    """
-    TREE=git write-tree
-    git commit-tree TREE -m "msg"
-    """
-    tree = subprocess.check_output(["git", "write-tree"]).strip()
-    commit = (
-        subprocess.check_output(["git", "commit-tree", tree, "-m", "index snapshot"])
-        .decode("utf-8")
-        .strip()
-    )
+def add_undo_history(tree):
+    undo_commit = read_branch("git-undo-history")
+    if undo_commit:
+        commit = (
+            subprocess.check_output(
+                ["git", "commit-tree", tree, "-m", "index snapshot", "-p", undo_commit]
+            )
+            .decode("utf-8")
+            .strip()
+        )
+        subprocess.check_call(["git", "update-ref", "git-undo-history", commit])
+    else:
+        commit = (
+            subprocess.check_output(
+                ["git", "commit-tree", tree, "-m", "index snapshot"]
+            )
+            .decode("utf-8")
+            .strip()
+        )
+
+        subprocess.check_call(["git", "branch", "git-undo-history", commit])
     return commit
+
+
+def snapshot_index():
+    tree = subprocess.check_output(["git", "write-tree"]).strip()
+    return add_undo_history(tree)
 
 
 def snapshot_workdir(index_commit):
@@ -56,15 +71,7 @@ def snapshot_workdir(index_commit):
 
     subprocess.check_call(["git", "add", "-u"])
     tree = subprocess.check_output(["git", "write-tree"]).strip()
-    commit = (
-        subprocess.check_output(
-            ["git", "commit-tree", tree, "-p", index_commit, "-m", "workdir snapshot"]
-        )
-        .decode("utf-8")
-        .strip()
-    )
-    # subprocess.check_call(["git", "restore", "-s", index_commit, "."])
-    return commit
+    return add_undo_history(tree)
 
 
 class Snapshot:
@@ -210,6 +217,17 @@ def get_reflog_message():
     output, _ = process.communicate()
     reflog_message = output.decode("utf-8").strip()
     return reflog_message
+
+
+def read_branch(branch):
+    try:
+        return subprocess.check_output(["git", "rev-parse", branch]).decode("utf-8")
+    except subprocess.CalledProcessError:
+        return None
+
+
+def create_branch(name, commit):
+    subprocess.check_call(["git", "branch", name, commit])
 
 
 def install_hooks(path="git_undo.py"):
