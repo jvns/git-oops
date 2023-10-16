@@ -367,5 +367,30 @@ def parse_args():
         print("Use 'record' or 'undo' as subcommands.")
 
 
+class LockFile:
+    def __init__(self):
+        git_dir = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], universal_newlines=True
+        ).strip()
+        self.lockfile_path = os.path.join(git_dir, ".git", "git-undo.lock")
+
+    def __enter__(self):
+        if os.path.exists(self.lockfile_path):
+            raise FileExistsError(
+                f"Lock file {self.lockfile_path} already exists. Another process may be using it."
+            )
+        with open(self.lockfile_path, "w") as lockfile:
+            lockfile.write("Lock")
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        os.remove(self.lockfile_path)
+
+
 if __name__ == "__main__":
-    parse_args()
+    try:
+        with LockFile():
+            parse_args()
+            print("done")
+    except:
+        print("another process is running")
