@@ -140,7 +140,7 @@ class Snapshot:
                 self.refs == other.refs
                 and self.head == other.head
                 and self.index_commit == other.index_commit
-                and self.workdir_comit == other.workdir_commit
+                and self.workdir_commit == other.workdir_commit
             )
 
     @classmethod
