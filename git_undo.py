@@ -62,9 +62,8 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
                 index_commit,
                 "-p",
                 workdir_commit,
-                "--author",
-                "git-undo <undo@example.com>",
             ],
+            env={"GIT_AUTHOR_NAME": "git-undo", "GIT_AUTHOR_EMAIL": "undo@example.com"},
             stderr=subprocess.PIPE,
         )
         check_output(["git", "branch", "-f", "git-undo", commit])
@@ -80,9 +79,8 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
                 index_commit,
                 "-p",
                 workdir_commit,
-                "--author",
-                "git-undo <undo@example.com>",
             ],
+            env={"GIT_AUTHOR_NAME": "git-undo", "GIT_AUTHOR_EMAIL": "undo@example.com"},
             stderr=subprocess.PIPE,
         )
 
