@@ -33,7 +33,7 @@ def snapshot_refs():
 
 
 def add_undo_history(tree):
-    undo_commit = read_branch("git-undo-history").strip()
+    undo_commit = read_branch("git-undo-history")
     if undo_commit:
         commit = (
             subprocess.check_output(
@@ -221,7 +221,11 @@ def get_reflog_message():
 
 def read_branch(branch):
     try:
-        return subprocess.check_output(["git", "rev-parse", branch]).decode("utf-8")
+        return (
+            subprocess.check_output(["git", "rev-parse", branch])
+            .decode("utf-8")
+            .strip()
+        )
     except subprocess.CalledProcessError:
         return None
 
