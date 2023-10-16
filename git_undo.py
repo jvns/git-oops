@@ -103,7 +103,6 @@ class Snapshot:
         return "\n".join(
             [
                 f"FormatVersion: 1",
-                f"Timestamp: {self.timestamp}",
                 f"Message: {self.message}",
                 # todo: add undo
                 f"HEAD: {self.head}",
@@ -378,6 +377,7 @@ class LockFile:
             ["git", "rev-parse", "--show-toplevel"], universal_newlines=True
         ).strip()
         self.lockfile_path = os.path.join(git_dir, ".git", "git-undo.lock")
+        print(self.lockfile_path)
 
     def __enter__(self):
         if os.path.exists(self.lockfile_path):
@@ -397,5 +397,5 @@ if __name__ == "__main__":
         with LockFile():
             parse_args()
             print("done")
-    except:
+    except FileExistsError:
         print("another process is running")
