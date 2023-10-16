@@ -19,8 +19,11 @@ Refs:
 
 
 def check_output(cmd):
-    print(f"Running command: {cmd}")
     is_shell = type(cmd) is str
+    if is_shell:
+        print(f"Running command: '{cmd}'")
+    else:
+        print(f"running command: '{' '.join(cmd)}'")
     return subprocess.check_output(cmd, shell=is_shell).decode("utf-8").strip()
 
 
@@ -38,6 +41,7 @@ def snapshot_refs():
 
 def add_undo_history(tree, snapshot_type):
     undo_commit = read_branch("refs/heads/git-undo-history")
+    print("result: ", undo_commit)
     if undo_commit:
         print("branch exists")
         commit = check_output(
@@ -46,17 +50,17 @@ def add_undo_history(tree, snapshot_type):
                 "commit-tree",
                 tree,
                 "-m",
-                f"{snapshot_type} snapshot",
+                f"{snapshot_type}",
                 "-p",
                 undo_commit,
             ]
         )
-        subprocess.check_call(["git", "update-ref", "git-undo-history", commit])
+        check_output(["git", "branch", "-f", "git-undo-history", commit])
     else:
         print("creating branch")
         commit = check_output(["git", "commit-tree", tree, "-m", "index snapshot"])
 
-        subprocess.check_call(["git", "branch", "git-undo-history", commit])
+        check_output(["git", "branch", "git-undo-history", commit])
     return commit
 
 
@@ -73,8 +77,8 @@ def snapshot_workdir(index_commit):
     git restore --staged $INDEX_COMMIT
     """
 
-    subprocess.check_call(["git", "add", "-u"])
-    tree = check_output(["git", "write-tree"])
+    check_output("git add -u")
+    tree = check_output("git write-tree")
     return add_undo_history(tree, "workdir")
 
 
