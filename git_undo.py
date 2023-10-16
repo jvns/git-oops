@@ -71,11 +71,13 @@ def snapshot_workdir(index_commit):
     git add -u
     TREE=git write-tree
     echo 'msg' | git commit-tree TREE -p PARENT
-    git restore --staged $INDEX_COMMIT
+    # put the index commit back
+    git read-tree $INDEX_COMMIT
     """
 
     check_output("git add -u")
     tree = check_output("git write-tree")
+    check_output(["git", "read-tree", index_commit])
     return add_undo_history(tree, "workdir")
 
 
@@ -406,7 +408,6 @@ class LockFile:
             )
         with open(self.lockfile_path, "w") as lockfile:
             lockfile.write("Lock")
-        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         os.remove(self.lockfile_path)
