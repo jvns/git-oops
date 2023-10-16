@@ -19,7 +19,7 @@ Refs:
 
 
 def check_output(cmd):
-    print("Running: '{}'".format(" ".join(cmd)))
+    print(f"Running command: {cmd}")
     return subprocess.check_output(cmd, shell=True).decode("utf-8").strip()
 
 
@@ -60,7 +60,7 @@ def add_undo_history(tree, snapshot_type):
 
 
 def snapshot_index():
-    tree = check_output(["git", "write-tree"])
+    tree = check_output("git write-tree")
     return add_undo_history(tree, "index")
 
 
