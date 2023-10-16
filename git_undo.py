@@ -33,7 +33,7 @@ def snapshot_refs():
 
 
 def add_undo_history(tree):
-    undo_commit = read_branch("git-undo-history")
+    undo_commit = read_branch("refs/heads/git-undo-history")
     if undo_commit:
         commit = (
             subprocess.check_output(
