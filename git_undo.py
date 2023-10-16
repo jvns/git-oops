@@ -62,7 +62,8 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
                 index_commit,
                 "-p",
                 workdir_commit,
-            ]
+            ],
+            stderr=subprocess.PIPE,
         )
         check_output(["git", "branch", "-f", "git-undo", commit])
     else:
@@ -77,7 +78,8 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
                 index_commit,
                 "-p",
                 workdir_commit,
-            ]
+            ],
+            stderr=subprocess.PIPE,
         )
 
         check_output(["git", "branch", "git-undo", commit])
