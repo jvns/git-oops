@@ -201,7 +201,6 @@ class Snapshot:
 
     @classmethod
     def load(cls, commit_id):
-        # read commit message from id
         git_command = f"git log {commit_id} --format=%B -n 1"
         message = check_output(git_command)
 
