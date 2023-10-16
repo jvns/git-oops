@@ -224,8 +224,8 @@ def install_hooks(path="git_undo.py"):
         "post-commit",
         "post-merge",
         "post-rewrite",
-        "post-index-change",
         "pre-auto-gc",
+        # "post-index-change",
         # "reference-transaction",
     ]
 
