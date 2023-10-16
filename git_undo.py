@@ -1,120 +1,176 @@
-import sqlite3
 import datetime
 import subprocess
 import argparse
 import os
 
-CREATE_SNAPSHOTS = """
-CREATE TABLE IF NOT EXISTS snapshots (
-    id INTEGER PRIMARY KEY,
-    timestamp DATETIME NOT NULL,  -- Timestamp of the snapshot
-    description TEXT              -- Description of the snapshot (optional)
-);
-
-
+"""
+Git Snapshot
+FormatVersion: 1
+Timestamp: <Timestamp>
+Message: <Message>
+Undo: <Undo>
+HEAD: <SHA1>
+Index: <SHA1>
+Workdir: <SHA1>
+Refs:
+<RefName1>: <SHA1>
+<RefName2>: <SHA1>
 """
 
-CREATE_REFS = """
-CREATE TABLE IF NOT EXISTS refs (
-    id INTEGER PRIMARY KEY,
-    snapshot_id INTEGER NOT NULL,  -- Foreign key to Snapshot
-    ref_name TEXT NOT NULL,       -- Name of the ref (branch or tag)
-    commit_hash TEXT NOT NULL,    -- Commit hash for the ref at this snapshot
-    FOREIGN KEY (snapshot_id) REFERENCES Snapshot(id)
-);
-"""
 
-CREATE_HEAD = """
-CREATE TABLE IF NOT EXISTS head (
-    id INTEGER PRIMARY KEY,
-    snapshot_id INTEGER NOT NULL,  -- Foreign key to Snapshot
-    ref_name TEXT NOT NULL,    -- Commit hash for the ref at this snapshot
-    FOREIGN KEY (snapshot_id) REFERENCES Snapshot(id)
-);
-"""
+def snapshot_head():
+    head_command = "git symbolic-ref HEAD"
+    process = subprocess.Popen(head_command, shell=True, stdout=subprocess.PIPE)
+    output, _ = process.communicate()
+    head_ref = output.decode("utf-8").strip()
+
+
+def snapshot_refs():
+    git_command = "git for-each-ref --format='%(refname) %(objectname)'"
+    process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
+    output, _ = process.communicate()
+    return [line.decode("utf-8").strip().split() for line in output.splitlines()]
+
+
+def snapshot_index():
+    """
+    TREE=git write-tree
+    git commit-tree TREE -m "msg"
+    """
+    tree = subprocess.check_output(["git", "write-tree"]).strip()
+    commit = subprocess.check_output(
+        ["git", "commit-tree", tree, "-m", "index snapshot"]
+    ).strip()
+    return commit
+
+
+def snapshot_workdir(index_commit):
+    """
+    git add -u
+    TREE=git write-tree
+    echo 'msg' | git commit-tree TREE -p PARENT
+    git restore --staged $INDEX_COMMIT
+    """
+
+    subprocess.check_call(["git", "add", "-u"])
+    tree = subprocess.check_output(["git", "write-tree"]).strip()
+    commit = subprocess.check_output(
+        ["git", "commit-tree", tree, "-p", index_commit, "-m", "workdir snapshot"]
+    ).strip()
+    subprocess.check_call(["git", "restore", "--staged", index_commit])
+    return commit
 
 
 class Snapshot:
-    def __init__(self, id, timestamp, description, refs):
+    def __init__(self, id, timestamp, message, refs, head, index, workdir):
         self.id = id
         self.timestamp = timestamp
-        self.description = description
+        self.message = message
         self.refs = refs
+        self.head = head
+        self.index = index
+        self.workdir = workdir
 
     def __eq__(self, other):
         if isinstance(other, Snapshot):
             return (
-                self.id == other.id
-                and self.timestamp == other.timestamp
-                and self.description == other.description
-                and self.refs == other.refs
+                self.refs == other.refs
+                and self.head == other.head
+                and self.index == other.index
+                and self.workdir == other.workdir
             )
 
     @classmethod
     def record(cls):
-        # Capture the snapshot, including all refs and HEAD
-        git_command = "git for-each-ref --format='%(refname) %(objectname)'"
-        process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
-        output, _ = process.communicate()
-        refs = [line.decode("utf-8").strip().split() for line in output.splitlines()]
+        index = snapshot_index()
+        return cls(
+            id=None,
+            timestamp=datetime.datetime.now(),
+            message=get_reflog_message(),
+            refs=snapshot_refs(),
+            head=snapshot_head(),
+            index=index,
+            workdir=snapshot_workdir(index),
+        )
 
-        head_command = "git symbolic-ref HEAD"
-        process = subprocess.Popen(head_command, shell=True, stdout=subprocess.PIPE)
-        output, _ = process.communicate()
-        head_ref = output.decode("utf-8").strip()
-
-        snapshot = cls(0, "", "", refs + [("HEAD", head_ref)])
-        return snapshot
+    def format(self):
+        # no newlines in message
+        assert "\n" not in self.message
+        return "\n".join(
+            [
+                f"FormatVersion: 1",
+                f"Timestamp: {self.timestamp}",
+                f"Message: {self.message}",
+                # todo: add undo
+                f"HEAD: {self.head}",
+                f"Index: {self.index}",
+                f"Workdir: {self.workdir}",
+                f"Refs:",
+                *[f"{ref}: {sha1}" for ref, sha1 in self.refs],
+            ]
+        )
 
     def save(self, conn):
-        # Save the snapshot to the database
-        cursor = conn.cursor()
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute(
-            "INSERT INTO snapshots (timestamp, description) VALUES (?, ?)",
-            (timestamp, self.description),
-        )
-        snapshot_id = cursor.lastrowid
-        self.id = snapshot_id
-        for ref_name, commit_hash in self.refs:
-            cursor.execute(
-                "INSERT INTO refs (snapshot_id, ref_name, commit_hash) VALUES (?, ?, ?)",
-                (snapshot_id, ref_name, commit_hash),
-            )
-        cursor.execute(
-            "INSERT INTO head (snapshot_id, ref_name) VALUES (?, ?)",
-            (snapshot_id, self.refs[-1][1]),
-        )
-        conn.commit()
+        # get most recent commit id from `git log git-undo`
+        # use plumbing command
+        git_command = "git log git-undo --format=%H -n 1"
+        output = subprocess.check_output(git_command, shell=True)
+        parent_commit = output.decode("utf-8").strip()
+        message = self.format()
 
     @classmethod
-    def load(cls, conn, snapshot_id):
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, timestamp, description FROM snapshots WHERE id = ?",
-            (snapshot_id,),
+    def load(cls, commit_id):
+        # read commit message from id
+        git_command = f"git log {commit_id} --format=%B -n 1"
+        output = subprocess.check_output(git_command, shell=True)
+        message = output.decode("utf-8").strip()
+
+        # parse message
+        lines = message.splitlines()
+        lines = [line.strip() for line in lines]
+
+        # pop things off beginning
+        format_version = lines.pop(0)
+        assert format_version == "FormatVersion: 1"
+        timestamp = lines.pop(0)
+        assert timestamp.startswith("Timestamp: ")
+        timestamp = timestamp.split()[1].strip()
+
+        message = lines.pop(0)
+        assert message.startswith("Message: ")
+        message = message.split()[1].strip()
+
+        head = lines.pop(0)
+        assert head.startswith("HEAD: ")
+        head = head.split()[1].strip()
+
+        index = lines.pop(0)
+        assert index.startswith("Index: ")
+        index = index.split()[1].strip()
+
+        workdir = lines.pop(0)
+        assert workdir.startswith("Workdir: ")
+        workdir = workdir.split()[1].strip()
+
+        ref_header = lines.pop(0)
+        assert ref_header == "Refs:"
+
+        refs = {}
+
+        while lines:
+            ref = lines.pop(0)
+            ref_name, sha1 = ref.split(":")
+            refs[ref_name.strip()] = sha1.strip()
+
+        return cls(
+            id=commit_id,
+            message=message,
+            timestamp=timestamp,
+            refs=refs,
+            head=head,
+            index=index,
+            workdir=workdir,
         )
-        snapshot_data = cursor.fetchone()
-
-        if snapshot_data is None:
-            return None
-
-        id, timestamp, description = snapshot_data
-        cursor.execute(
-            "SELECT ref_name, commit_hash FROM refs WHERE snapshot_id = ?",
-            (snapshot_id,),
-        )
-        refs_data = cursor.fetchall()
-        refs = [(ref[0], ref[1]) for ref in refs_data]
-
-        return cls(id, timestamp, description, refs)
-
-    @staticmethod
-    def load_all(conn):
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM snapshots ORDER BY id DESC")
-        snapshot_ids = [row[0] for row in cursor.fetchall()]
-        return [Snapshot.load(conn, snapshot_id) for snapshot_id in snapshot_ids]
 
     def restore(self):
         # Restore the snapshot by checking out each ref to the respective commit hash
@@ -187,62 +243,8 @@ if __name__ == "__main__":
     install_hooks()
 
 
-def record_snapshot(conn, description=None):
-    try:
-        description = get_reflog_message()
-    except subprocess.CalledProcessError as e:
-        print("Error getting reflog message:", e)
-        return None
-
-    cursor = conn.cursor()
-    try:
-        # Connect to the SQLite database
-
-        # Get the current timestamp
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Insert a new snapshot record
-        cursor.execute(
-            "INSERT INTO snapshots (timestamp, description) VALUES (?, ?)",
-            (timestamp, description),
-        )
-        snapshot_id = cursor.lastrowid  # Get the ID of the inserted snapshot
-
-        # Capture and record all refs from the Git repository
-        git_command = "git for-each-ref --format='%(refname) %(objectname)'"
-        process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
-        output, _ = process.communicate()
-        refs = [line.decode("utf-8").strip().split() for line in output.splitlines()]
-
-        # get HEAD
-        git_command = "git rev-parse HEAD"
-        process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
-        output, _ = process.communicate()
-        head = output.decode("utf-8").strip()
-
-        for ref_name, commit_hash in refs:
-            cursor.execute(
-                "INSERT INTO refs (snapshot_id, ref_name, commit_hash) VALUES (?, ?, ?)",
-                (snapshot_id, ref_name, commit_hash),
-            )
-
-        cursor.execute(
-            "INSERT INTO head (snapshot_id, ref_name) VALUES (?, ?)",
-            (snapshot_id, get_head()),
-        )
-
-        # Commit the changes and close the connection
-        conn.commit()
-        conn.close()
-
-        return snapshot_id  # Return the ID of the new snapshot
-
-    except sqlite3.Error as e:
-        print("Error recording snapshot:", e)
-        return None
-    except subprocess.CalledProcessError as e:
-        print("Error recording snapshot:", e)
-        return None
+def record_snapshot():
+    Snapshot.record()
 
 
 def index_clean():
@@ -331,38 +333,6 @@ def restore_snapshot(conn, snapshot_id):
         print("Error restoring snapshot:", e)
 
 
-def open_memory_db():
-    conn = sqlite3.connect(":memory:")
-    cursor = conn.cursor()
-    cursor.execute(CREATE_SNAPSHOTS)
-    cursor.execute(CREATE_REFS)
-    cursor.execute(CREATE_HEAD)
-    conn.commit()
-    return conn
-
-
-def open_db():
-    git_repository_path = subprocess.check_output(
-        "git rev-parse --show-toplevel", shell=True
-    )
-    # add '.git/git-undo/'
-    db_dir = os.path.join(
-        git_repository_path.decode("utf-8").strip(), ".git", "git-undo"
-    )
-    os.makedirs(db_dir, exist_ok=True)
-    database_path = os.path.join(db_dir, "snapshots.db")
-    conn = sqlite3.connect(database_path)
-    # Create the tables if they don't already exist
-    cursor = conn.cursor()
-    cursor.execute(CREATE_SNAPSHOTS)
-    cursor.execute(CREATE_REFS)
-    cursor.execute(CREATE_HEAD)
-    cursor.execute("PRAGMA journal_mode=WAL")
-    conn.commit()
-
-    return conn
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Git Snapshot Tool")
 
@@ -382,8 +352,7 @@ def parse_args():
     args = parser.parse_args()
 
     if args.subcommand == "record":
-        conn = open_db()
-        record_snapshot(conn)
+        record_snapshot()
     elif args.subcommand == "undo":
         undo_snapshot()
     elif args.subcommand == "init":
