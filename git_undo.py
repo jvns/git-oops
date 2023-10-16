@@ -41,9 +41,7 @@ def snapshot_refs():
 
 def add_undo_history(tree, snapshot_type):
     undo_commit = read_branch("refs/heads/git-undo-history")
-    print("result: ", undo_commit)
     if undo_commit:
-        print("branch exists")
         commit = check_output(
             [
                 "git",
@@ -57,7 +55,6 @@ def add_undo_history(tree, snapshot_type):
         )
         check_output(["git", "branch", "-f", "git-undo-history", commit])
     else:
-        print("creating branch")
         commit = check_output(["git", "commit-tree", tree, "-m", "index snapshot"])
 
         check_output(["git", "branch", "git-undo-history", commit])
