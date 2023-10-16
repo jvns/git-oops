@@ -416,6 +416,5 @@ if __name__ == "__main__":
     try:
         with LockFile():
             parse_args()
-            print("done")
     except FileExistsError:
         print("another process is running")
