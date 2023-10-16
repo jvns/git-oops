@@ -97,11 +97,13 @@ def make_commit(tree):
             "commit-tree",
             tree,
             "-m",
-            f"index/workdir",
+            f"snapshot",
         ],
         env={
             "GIT_AUTHOR_DATE": date.isoformat(),
             "GIT_COMMITTER_DATE": date.isoformat(),
+            "GIT_AUTHOR_NAME": "git-undo",
+            "GIT_AUTHOR_EMAIL": "undo@example.com",
         },
     )
 
