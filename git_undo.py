@@ -18,13 +18,15 @@ Refs:
 """
 
 
-def check_output(cmd):
+def check_output(cmd, **kwargs):
     is_shell = type(cmd) is str
     # if is_shell:
     #    print(f"Running command: '{cmd}'")
     # else:
     #    print(f"running command: '{' '.join(cmd)}'")
-    return subprocess.check_output(cmd, shell=is_shell).decode("utf-8").strip()
+    return (
+        subprocess.check_output(cmd, shell=is_shell, **kwargs).decode("utf-8").strip()
+    )
 
 
 def snapshot_head():
@@ -67,14 +69,6 @@ def snapshot_index():
 
 
 def snapshot_workdir(index_commit):
-    """
-    git add -u
-    TREE=git write-tree
-    echo 'msg' | git commit-tree TREE -p PARENT
-    # put the index commit back
-    git read-tree $INDEX_COMMIT
-    """
-
     check_output("git add -u")
     tree = check_output("git write-tree")
     check_output(["git", "read-tree", index_commit])
