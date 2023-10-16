@@ -84,7 +84,7 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
     return commit
 
 
-def make_commit(tree, snapshot_type):
+def make_commit(tree):
     undo_commit = read_branch("refs/heads/git-undo-history")
     if undo_commit:
         commit = check_output(
@@ -93,7 +93,7 @@ def make_commit(tree, snapshot_type):
                 "commit-tree",
                 tree,
                 "-m",
-                f"{snapshot_type}",
+                f"index/workdir",
                 "-p",
                 undo_commit,
             ]
@@ -108,14 +108,14 @@ def make_commit(tree, snapshot_type):
 
 def snapshot_index():
     tree = check_output("git write-tree")
-    return tree, make_commit(tree, "index")
+    return tree, make_commit(tree)
 
 
 def snapshot_workdir(index_commit):
     check_output("git add -u")
     tree = check_output("git write-tree")
     check_output(["git", "read-tree", index_commit])
-    return tree, make_commit(tree, "workdir")
+    return tree, make_commit(tree)
 
 
 class Snapshot:
