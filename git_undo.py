@@ -20,7 +20,8 @@ Refs:
 
 def check_output(cmd):
     print(f"Running command: {cmd}")
-    return subprocess.check_output(cmd, shell=True).decode("utf-8").strip()
+    is_shell = type(cmd) is str
+    return subprocess.check_output(cmd, shell=is_shell).decode("utf-8").strip()
 
 
 def snapshot_head():
