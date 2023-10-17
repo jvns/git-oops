@@ -359,13 +359,26 @@ def install_hooks(path="git_undo.py"):
     for hook in hooks_to_install:
         hook_path = os.path.join(base_git_dir, ".git", "hooks", hook)
         with open(hook_path, "w") as hook_file:
-            hook_file.write(
-                f"""#!/bin/sh
+            if hook == "reference-transaction":
+                # only record when committed
+                hook_file.write(
+                    f"""#!/bin/sh
 DIR=$(git rev-parse --show-toplevel)
 cd $DIR || exit
-python3 {path} record || echo "error recording snapshot in {hook}"
-"""
-            )
+# check if $1 = "committed"
+if [ "$1" = "committed" ]; then
+    python3 {path} record || echo "error recording snapshot in {hook}"
+fi
+        """
+                )
+            else:
+                hook_file.write(
+                    f"""#!/bin/sh
+    DIR=$(git rev-parse --show-toplevel)
+    cd $DIR || exit
+    python3 {path} record || echo "error recording snapshot in {hook}"
+    """
+                )
         os.chmod(hook_path, 0o755)
 
 
