@@ -182,7 +182,7 @@ class Snapshot:
         workdir_tree, workdir_commit = snapshot_workdir(index_commit)
         return cls(
             id=None,
-            message=get_reflog_message(),
+            message=get_message(),
             refs=snapshot_refs(),
             head=snapshot_head(),
             index_commit=index_commit,
@@ -305,14 +305,6 @@ def get_head():
     output, _ = process.communicate()
     head_ref = output.decode("utf-8").strip()
     return head_ref
-
-
-def get_reflog_message():
-    git_command = "git reflog --format=%gs -n 1 HEAD"
-    process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
-    output, _ = process.communicate()
-    reflog_message = output.decode("utf-8").strip()
-    return reflog_message
 
 
 def read_branch(branch):
@@ -511,16 +503,32 @@ class LockFile:
         os.remove(self.lockfile_path)
 
 
-def get_parent_process():
+def get_git_command():
     ppid = os.getppid()
-    # get grandparent
 
     try:
         gpid = check_output(["ps", "-o", "ppid=", "-p", str(ppid)])
         output = check_output(["ps", "-o", "command=", "-p", str(gpid)])
-        return output
+        parts = output.split()
+        parts[0] = os.path.basename(parts[0])
+        return " ".join(parts)
     except subprocess.CalledProcessError:
         return None
+
+
+def get_reflog_message():
+    git_command = "git reflog --format=%gs -n 1 HEAD"
+    process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
+    output, _ = process.communicate()
+    reflog_message = output.decode("utf-8").strip()
+    return reflog_message
+
+
+def get_message():
+    command = get_git_command()
+    if command is not None and command[:3] == "git":
+        return command
+    return get_reflog_message()
 
 
 if __name__ == "__main__":
