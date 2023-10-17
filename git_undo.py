@@ -513,12 +513,12 @@ class LockFile:
 
 def get_parent_process():
     ppid = os.getppid()
+    # get grandparent
+
     try:
-        output = check_output(["ps", "-o", "command", "-p", str(ppid)])
-        lines = output.split("\n")
-        if len(lines) > 1:
-            return lines[1].strip()
-        return None
+        gpid = check_output(["ps", "-o", "ppid=", "-p", str(ppid)])
+        output = check_output(["ps", "-o", "command=", "-p", str(gpid)])
+        return output
     except subprocess.CalledProcessError:
         return None
 
