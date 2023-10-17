@@ -511,7 +511,20 @@ class LockFile:
         os.remove(self.lockfile_path)
 
 
+def get_parent_process():
+    ppid = os.getppid()
+    try:
+        output = check_output(["ps", "-o", "command", "-p", str(ppid)])
+        lines = output.split("\n")
+        if len(lines) > 1:
+            return lines[1].strip()
+        return None
+    except subprocess.CalledProcessError:
+        return None
+
+
 if __name__ == "__main__":
+    print(get_parent_process())
     start = time.time()
     try:
         with LockFile():
