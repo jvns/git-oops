@@ -2,6 +2,7 @@ import datetime
 import subprocess
 import argparse
 import os
+import time
 
 """
 Git Snapshot
@@ -55,6 +56,8 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
                 "-c",
                 "user.name=git-undo",
                 "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
                 "user.email=undo@example.com",
                 "commit-tree",
                 tree,
@@ -69,11 +72,23 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
             ],
             stderr=subprocess.PIPE,
         )
-        check_output(["git", "branch", "-f", "git-undo", commit])
+        check_output(
+            [
+                "git",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "branch",
+                "-f",
+                "git-undo",
+                commit,
+            ]
+        )
     else:
         commit = check_output(
             [
                 "git",
+                "-c",
+                "core.hooksPath=/dev/null",
                 "-c",
                 "user.name=git-undo",
                 "-c",
@@ -90,7 +105,9 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
             stderr=subprocess.PIPE,
         )
 
-        check_output(["git", "branch", "git-undo", commit])
+        check_output(
+            ["git", "-c", "core.hooksPath=/dev/null", "branch", "git-undo", commit]
+        )
     return commit
 
 
@@ -99,6 +116,8 @@ def make_commit(tree):
     return check_output(
         [
             "git",
+            "-c",
+            "core.hooksPath=/dev/null",
             "-c",
             "user.name=git-undo",
             "-c",
@@ -120,7 +139,7 @@ def snapshot_index():
     our_index = os.path.join(git_dir(), ".git", "undo-index")
     check_output(["cp", index_filename, our_index])
     tree = check_output(
-        "git write-tree",
+        ["git", "-c", "core.hooksPath=/dev/null", "write-tree"],
         env={
             "GIT_INDEX_FILE": our_index,
         },
@@ -133,9 +152,10 @@ def snapshot_workdir(index_commit):
     env = {
         "GIT_INDEX_FILE": our_index,
     }
-    check_output("git add -u", env=env)
-    tree = check_output("git write-tree", env=env)
-    # remove undo-index
+    check_output(["git", "-c", "core.hooksPath=/dev/null", "add", "-u"], env=env)
+    tree = check_output(
+        ["git", "-c", "core.hooksPath=/dev/null", "write-tree"], env=env
+    )
     os.remove(our_index)
     return tree, make_commit(tree)
 
@@ -497,8 +517,11 @@ class LockFile:
 
 
 if __name__ == "__main__":
+    start = time.time()
     try:
         with LockFile():
             parse_args()
     except FileExistsError as _:
         pass
+    elapsed = time.time() - start
+    print(f"Time taken: {elapsed:.2f}s")
