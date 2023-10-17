@@ -48,11 +48,14 @@ def snapshot_refs():
 
 def add_undo_entry(tree, message, index_commit, workdir_commit):
     undo_commit = read_branch("refs/heads/git-undo")
-    env = {"GIT_AUTHOR_NAME": "git-undo", "GIT_AUTHOR_EMAIL": "undo@example.com"}
     if undo_commit:
         commit = check_output(
             [
                 "git",
+                "-c",
+                "user.name=git-undo",
+                "-c",
+                "user.email=undo@example.com",
                 "commit-tree",
                 tree,
                 "-m",
@@ -64,7 +67,6 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
                 "-p",
                 workdir_commit,
             ],
-            env=env,
             stderr=subprocess.PIPE,
         )
         check_output(["git", "branch", "-f", "git-undo", commit])
@@ -72,6 +74,10 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
         commit = check_output(
             [
                 "git",
+                "-c",
+                "user.name=git-undo",
+                "-c",
+                "user.email=undo@example.com",
                 "commit-tree",
                 tree,
                 "-m",
@@ -81,7 +87,6 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
                 "-p",
                 workdir_commit,
             ],
-            env=env,
             stderr=subprocess.PIPE,
         )
 
@@ -94,6 +99,10 @@ def make_commit(tree):
     return check_output(
         [
             "git",
+            "-c",
+            "user.name=git-undo",
+            "-c",
+            "user.email=undo@example.com",
             "commit-tree",
             tree,
             "-m",
@@ -102,8 +111,6 @@ def make_commit(tree):
         env={
             "GIT_AUTHOR_DATE": date.isoformat(),
             "GIT_COMMITTER_DATE": date.isoformat(),
-            "GIT_AUTHOR_NAME": "git-undo",
-            "GIT_AUTHOR_EMAIL": "undo@example.com",
         },
     )
 
