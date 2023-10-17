@@ -17,10 +17,12 @@ def check_output(cmd, **kwargs):
 
 
 def snapshot_head():
-    head_command = "git symbolic-ref HEAD"
-    process = subprocess.Popen(head_command, shell=True, stdout=subprocess.PIPE)
-    output, _ = process.communicate()
-    return output.decode("utf-8").strip()
+    try:
+        head_ref = check_output("git symbolic-ref HEAD", stderr=subprocess.DEVNULL)
+        if head_ref:
+            return head_ref
+    except subprocess.CalledProcessError:
+        return check_output("git rev-parse HEAD", stderr=subprocess.DEVNULL)
 
 
 def snapshot_refs():
