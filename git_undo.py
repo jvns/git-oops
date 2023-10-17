@@ -4,20 +4,6 @@ import argparse
 import os
 import time
 
-"""
-Git Snapshot
-FormatVersion: 1
-Timestamp: <Timestamp>
-Message: <Message>
-Undo: <Undo>
-HEAD: <SHA1>
-Index: <SHA1>
-Workdir: <SHA1>
-Refs:
-<RefName1>: <SHA1>
-<RefName2>: <SHA1>
-"""
-
 
 def check_output(cmd, **kwargs):
     is_shell = type(cmd) is str
