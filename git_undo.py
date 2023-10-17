@@ -11,9 +11,16 @@ def check_output(cmd, **kwargs):
     #    print(f"Running command: '{cmd}'")
     # else:
     #    print(f"running command: '{' '.join(cmd)}'")
-    return (
+    start = time.time()
+    result = (
         subprocess.check_output(cmd, shell=is_shell, **kwargs).decode("utf-8").strip()
     )
+    elapsed = time.time() - start
+    # print(f"Command took {elapsed:.3f} seconds: {cmd}")
+    return result
+
+
+GIT_DIR = check_output("git rev-parse --show-toplevel")
 
 
 def snapshot_head():
@@ -123,8 +130,8 @@ def make_commit(tree):
 
 
 def snapshot_index():
-    index_filename = os.path.join(git_dir(), ".git", "index")
-    our_index = os.path.join(git_dir(), ".git", "undo-index")
+    index_filename = os.path.join(GIT_DIR, ".git", "index")
+    our_index = os.path.join(GIT_DIR, ".git", "undo-index")
     check_output(["cp", index_filename, our_index])
     tree = check_output(
         ["git", "-c", "core.hooksPath=/dev/null", "write-tree"],
@@ -136,7 +143,7 @@ def snapshot_index():
 
 
 def snapshot_workdir(index_commit):
-    our_index = os.path.join(git_dir(), ".git", "undo-index")
+    our_index = os.path.join(GIT_DIR, ".git", "undo-index")
     env = {
         "GIT_INDEX_FILE": our_index,
     }
@@ -316,12 +323,7 @@ def read_branch(branch):
         return None
 
 
-def git_dir():
-    return check_output("git rev-parse --show-toplevel")
-
-
 def install_hooks(path="git_undo.py"):
-    base_git_dir = git_dir()
     # List of Git hooks to install
     hooks_to_install = [
         "post-applypatch",
@@ -337,7 +339,7 @@ def install_hooks(path="git_undo.py"):
 
     # Iterate through the list of hooks and install them
     for hook in hooks_to_install:
-        hook_path = os.path.join(base_git_dir, ".git", "hooks", hook)
+        hook_path = os.path.join(GIT_DIR, ".git", "hooks", hook)
         with open(hook_path, "w") as hook_file:
             if hook == "reference-transaction":
                 # only record when committed
@@ -491,7 +493,7 @@ def parse_args():
 
 class LockFile:
     def __init__(self):
-        self.lockfile_path = os.path.join(git_dir(), ".git", "git-undo.lock")
+        self.lockfile_path = os.path.join(GIT_DIR, ".git", "git-undo.lock")
 
     def __enter__(self):
         if os.path.exists(self.lockfile_path):
