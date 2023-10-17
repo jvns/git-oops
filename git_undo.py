@@ -336,10 +336,6 @@ def read_branch(branch):
         return None
 
 
-def create_branch(name, commit):
-    subprocess.check_call(["git", "branch", name, commit])
-
-
 def git_dir():
     return check_output("git rev-parse --show-toplevel")
 
