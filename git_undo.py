@@ -4,6 +4,8 @@ import argparse
 import os
 import time
 
+import pygit2
+
 
 def check_output(cmd, **kwargs):
     is_shell = type(cmd) is str
@@ -20,6 +22,9 @@ def check_output(cmd, **kwargs):
     return result
 
 
+repository_path = pygit2.discover_repository(".")
+repo = pygit2.Repository(repository_path)
+
 GIT_DIR = check_output("git rev-parse --show-toplevel")
 
 
@@ -33,11 +38,8 @@ def snapshot_head():
 
 
 def snapshot_refs():
-    output = check_output(["git", "for-each-ref", "--format=%(refname) %(objectname)"])
-    refs = [line.strip().split() for line in output.splitlines()]
-    # remove any remote refs
+    refs = [(ref, repo.references[ref].target) for ref in repo.references]
     refs = [ref for ref in refs if not ref[0].startswith("refs/remotes/")]
-    # remove any git-undo refs
     refs = [ref for ref in refs if not ref[0].startswith("refs/heads/git-undo")]
     return refs
 
