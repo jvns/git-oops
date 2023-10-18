@@ -121,6 +121,16 @@ class Snapshot:
             workdir_tree=workdir_tree,
         )
 
+    @classmethod
+    def load_all(cls, repo):
+        # get all commits from `git-undo` branch
+        branch = repo.references["refs/heads/git-undo"]
+        return [
+            Snapshot.load(repo, x.id)
+            for x in repo.walk(branch.target, pygit2.GIT_SORT_TOPOLOGICAL)
+            if x.message.startswith("FormatVersion: 1")
+        ]
+
     def format(self):
         # no newlines in message
         assert "\n" not in self.message
@@ -137,6 +147,9 @@ class Snapshot:
             ]
         )
 
+    def __str__(self):
+        return self.format()
+
     def save(self, repo):
 
         message = self.format()
@@ -148,7 +161,7 @@ class Snapshot:
                 print("No changes to save")
                 return
 
-        add_undo_entry(
+        return add_undo_entry(
             repo=repo,
             message=message,
             tree=self.workdir_tree,
@@ -284,7 +297,7 @@ fi
 
 def record_snapshot(repo):
     snapshot = Snapshot.record(repo)
-    snapshot.save(repo)
+    return snapshot.save(repo)
 
 
 def restore_snapshot(repo, commit_id):
