@@ -453,11 +453,9 @@ def get_git_command():
 
 
 def get_reflog_message():
-    git_command = "git reflog --format=%gs -n 1 HEAD"
-    process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
-    output, _ = process.communicate()
-    reflog_message = output.decode("utf-8").strip()
-    return reflog_message
+    head = repo.references.get("HEAD")
+    reflog = next(head.log())
+    return reflog.message
 
 
 def get_message():
