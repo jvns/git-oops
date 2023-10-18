@@ -414,22 +414,6 @@ def parse_args():
         print("Use 'record' or 'undo' as subcommands.")
 
 
-class LockFile:
-    def __init__(self):
-        self.lockfile_path = os.path.join(GIT_DIR, ".git", "git-undo.lock")
-
-    def __enter__(self):
-        if os.path.exists(self.lockfile_path):
-            raise FileExistsError(
-                f"Lock file {self.lockfile_path} already exists. Another process may be using it."
-            )
-        with open(self.lockfile_path, "w") as lockfile:
-            lockfile.write("Lock")
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        os.remove(self.lockfile_path)
-
-
 def get_git_command():
     ppid = os.getppid()
 
@@ -458,10 +442,6 @@ def get_message():
 
 if __name__ == "__main__":
     start = time.time()
-    try:
-        with LockFile():
-            parse_args()
-    except FileExistsError as _:
-        pass
+    parse_args()
     elapsed = time.time() - start
     print(f"Time taken: {elapsed:.2f}s")
