@@ -66,11 +66,7 @@ def make_commit(tree):
 
 
 def snapshot_index():
-    index_filename = os.path.join(GIT_DIR, ".git", "index")
-    our_index = os.path.join(GIT_DIR, ".git", "undo-index")
-    check_output(["cp", index_filename, our_index])
-    index = pygit2.Index(our_index)
-    tree = index.write_tree(repo)
+    tree = repo.index.write_tree(repo)
     return str(tree), make_commit(str(tree))
 
 
