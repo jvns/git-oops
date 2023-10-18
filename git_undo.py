@@ -22,23 +22,18 @@ def check_output(cmd, **kwargs):
     return result
 
 
-repository_path = pygit2.discover_repository(".")
-repo = pygit2.Repository(repository_path)
-GIT_DIR = repo.workdir
-
-
-def snapshot_head():
+def snapshot_head(repo):
     return repo.references["HEAD"].target
 
 
-def snapshot_refs():
+def snapshot_refs(repo):
     refs = [(ref, repo.references[ref].target) for ref in repo.references]
     refs = [ref for ref in refs if not ref[0].startswith("refs/remotes/")]
     refs = [ref for ref in refs if not ref[0].startswith("refs/heads/git-undo")]
     return refs
 
 
-def add_undo_entry(tree, message, index_commit, workdir_commit):
+def add_undo_entry(repo, tree, message, index_commit, workdir_commit):
     parents = [index_commit, workdir_commit]
     try:
         undo_commit = repo.references["refs/heads/git-undo"]
@@ -51,7 +46,7 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
     )
 
 
-def make_commit(tree):
+def make_commit(repo, tree):
     date = datetime.datetime(1970, 1, 1, 0, 0, 0)
     signature = pygit2.Signature("git-undo", "undo@example.com", int(date.timestamp()))
     commit = repo.create_commit(
@@ -65,20 +60,20 @@ def make_commit(tree):
     return str(commit)
 
 
-def snapshot_index():
+def snapshot_index(repo):
     tree = repo.index.write_tree(repo)
-    return str(tree), make_commit(str(tree))
+    return str(tree), make_commit(repo, str(tree))
 
 
-def snapshot_workdir(index_commit):
-    our_index = os.path.join(GIT_DIR, ".git", "undo-index")
+def snapshot_workdir(repo, index_commit):
+    our_index = os.path.join(repo.workdir, ".git", "undo-index")
     env = {
         "GIT_INDEX_FILE": our_index,
     }
     check_output(["git", "-c", "core.hooksPath=/dev/null", "add", "-u"], env=env)
     index = pygit2.Index(our_index)
     tree = index.write_tree(repo)
-    return tree, make_commit(tree)
+    return tree, make_commit(repo, tree)
 
 
 class Snapshot:
@@ -112,14 +107,14 @@ class Snapshot:
             )
 
     @classmethod
-    def record(cls):
-        index_tree, index_commit = snapshot_index()
-        workdir_tree, workdir_commit = snapshot_workdir(index_commit)
+    def record(cls, repo):
+        index_tree, index_commit = snapshot_index(repo)
+        workdir_tree, workdir_commit = snapshot_workdir(repo, index_commit)
         return cls(
             id=None,
-            message=get_message(),
-            refs=snapshot_refs(),
-            head=snapshot_head(),
+            message=get_message(repo),
+            refs=snapshot_refs(repo),
+            head=snapshot_head(repo),
             index_commit=index_commit,
             workdir_commit=workdir_commit,
             index_tree=index_tree,
@@ -142,11 +137,11 @@ class Snapshot:
             ]
         )
 
-    def save(self):
+    def save(self, repo):
 
         message = self.format()
 
-        last_commit = read_branch("refs/heads/git-undo")
+        last_commit = read_branch(repo, "refs/heads/git-undo")
         if last_commit:
             last_message = repo[last_commit].message
             if last_message == message:
@@ -154,6 +149,7 @@ class Snapshot:
                 return
 
         add_undo_entry(
+            repo=repo,
             message=message,
             tree=self.workdir_tree,
             index_commit=self.index_commit,
@@ -161,7 +157,7 @@ class Snapshot:
         )
 
     @classmethod
-    def load(cls, commit_id):
+    def load(cls, repo, commit_id):
         message = repo[commit_id].message
 
         # parse message
@@ -238,14 +234,14 @@ def get_head():
     return head_ref
 
 
-def read_branch(branch):
+def read_branch(repo, branch):
     try:
         return repo.references[branch].target
     except KeyError:
         return None
 
 
-def install_hooks(path="git_undo.py"):
+def install_hooks(repo, path="git_undo.py"):
     # List of Git hooks to install
     hooks_to_install = [
         "post-applypatch",
@@ -261,7 +257,7 @@ def install_hooks(path="git_undo.py"):
 
     # Iterate through the list of hooks and install them
     for hook in hooks_to_install:
-        hook_path = os.path.join(GIT_DIR, ".git", "hooks", hook)
+        hook_path = os.path.join(repo.workdir, ".git", "hooks", hook)
         with open(hook_path, "w") as hook_file:
             if hook == "reference-transaction":
                 # only record when committed
@@ -286,17 +282,13 @@ fi
         os.chmod(hook_path, 0o755)
 
 
-if __name__ == "__main__":
-    install_hooks()
+def record_snapshot(repo):
+    snapshot = Snapshot.record(repo)
+    snapshot.save(repo)
 
 
-def record_snapshot():
-    snapshot = Snapshot.record()
-    snapshot.save()
-
-
-def restore_snapshot(commit_id):
-    snapshot = Snapshot.load(commit_id)
+def restore_snapshot(repo, commit_id):
+    snapshot = Snapshot.load(repo, commit_id)
     print(snapshot.format())
 
 
@@ -335,15 +327,18 @@ def parse_args():
 
     args = parser.parse_args()
 
+    repository_path = pygit2.discover_repository(".")
+    repo = pygit2.Repository(repository_path)
+
     if args.subcommand == "record":
-        record_snapshot()
+        record_snapshot(repo)
     elif args.subcommand == "undo":
-        undo_snapshot()
+        undo_snapshot(repo)
     elif args.subcommand == "init":
-        install_hooks()
+        install_hooks(repo)
     elif args.subcommand == "restore":
         if args.snapshot_id:
-            restore_snapshot(args.snapshot_id)
+            restore_snapshot(repo, args.snapshot_id)
         else:
             print("Snapshot ID is required for the 'restore' subcommand.")
     else:
@@ -363,17 +358,17 @@ def get_git_command():
         return None
 
 
-def get_reflog_message():
+def get_reflog_message(repo):
     head = repo.references.get("HEAD")
     reflog = next(head.log())
     return reflog.message
 
 
-def get_message():
+def get_message(repo):
     command = get_git_command()
     if command is not None and command[:3] == "git":
         return command
-    return get_reflog_message()
+    return get_reflog_message(repo)
 
 
 if __name__ == "__main__":
