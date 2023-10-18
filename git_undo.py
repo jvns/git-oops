@@ -24,8 +24,7 @@ def check_output(cmd, **kwargs):
 
 repository_path = pygit2.discover_repository(".")
 repo = pygit2.Repository(repository_path)
-
-GIT_DIR = check_output("git rev-parse --show-toplevel")
+GIT_DIR = repo.workdir
 
 
 def snapshot_head():
