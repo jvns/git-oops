@@ -86,10 +86,8 @@ def snapshot_workdir(index_commit):
         "GIT_INDEX_FILE": our_index,
     }
     check_output(["git", "-c", "core.hooksPath=/dev/null", "add", "-u"], env=env)
-    tree = check_output(
-        ["git", "-c", "core.hooksPath=/dev/null", "write-tree"], env=env
-    )
-    os.remove(our_index)
+    index = pygit2.Index(our_index)
+    tree = index.write_tree(repo)
     return tree, make_commit(tree)
 
 
