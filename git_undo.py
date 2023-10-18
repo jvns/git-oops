@@ -45,75 +45,25 @@ def snapshot_refs():
 
 
 def add_undo_entry(tree, message, index_commit, workdir_commit):
-    undo_commit = read_branch("refs/heads/git-undo")
-    if undo_commit:
-        commit = check_output(
-            [
-                "git",
-                "-c",
-                "user.name=git-undo",
-                "-c",
-                "core.hooksPath=/dev/null",
-                "-c",
-                "user.email=undo@example.com",
-                "commit-tree",
-                tree,
-                "-m",
-                message,
-                "-p",
-                undo_commit,
-                "-p",
-                index_commit,
-                "-p",
-                workdir_commit,
-            ],
-            stderr=subprocess.PIPE,
-        )
-        check_output(
-            [
-                "git",
-                "-c",
-                "core.hooksPath=/dev/null",
-                "branch",
-                "-f",
-                "git-undo",
-                commit,
-            ]
-        )
-    else:
-        commit = check_output(
-            [
-                "git",
-                "-c",
-                "core.hooksPath=/dev/null",
-                "-c",
-                "user.name=git-undo",
-                "-c",
-                "user.email=undo@example.com",
-                "commit-tree",
-                tree,
-                "-m",
-                message,
-                "-p",
-                index_commit,
-                "-p",
-                workdir_commit,
-            ],
-            stderr=subprocess.PIPE,
-        )
-
-        check_output(
-            ["git", "-c", "core.hooksPath=/dev/null", "branch", "git-undo", commit]
-        )
-    return commit
+    parents = [index_commit, workdir_commit]
+    try:
+        undo_commit = repo.references["refs/heads/git-undo"]
+        parents.insert(0, undo_commit.target)
+    except KeyError:
+        pass
+    signature = pygit2.Signature("git-undo", "undo@example.com")
+    return repo.create_commit(
+        "refs/heads/git-undo", signature, signature, message, tree, parents
+    )
 
 
 def make_commit(tree):
     date = datetime.datetime(1970, 1, 1, 0, 0, 0)
+    signature = pygit2.Signature("git-undo", "undo@example.com", int(date.timestamp()))
     commit = repo.create_commit(
         None,
-        pygit2.Signature("git-undo", "undo@example.com", int(date.timestamp())),
-        pygit2.Signature("git-undo", "undo@example.com", int(date.timestamp())),
+        signature,
+        signature,
         "snapshot",
         tree,
         [],
