@@ -158,9 +158,7 @@ class Snapshot:
 
         last_commit = read_branch("refs/heads/git-undo")
         if last_commit:
-            last_message = check_output(
-                ["git", "log", "-1", "--format=%B", last_commit]
-            )
+            last_message = repo[last_commit].message
             if last_message == message:
                 print("No changes to save")
                 return
@@ -174,8 +172,7 @@ class Snapshot:
 
     @classmethod
     def load(cls, commit_id):
-        git_command = f"git log {commit_id} --format=%B -n 1"
-        message = check_output(git_command)
+        message = repo[commit_id].message
 
         # parse message
         lines = message.splitlines()
@@ -254,8 +251,8 @@ def get_head():
 
 def read_branch(branch):
     try:
-        return check_output(["git", "rev-parse", branch])
-    except subprocess.CalledProcessError:
+        return repo.references[branch].target
+    except KeyError:
         return None
 
 
