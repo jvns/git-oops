@@ -171,9 +171,6 @@ class Snapshot:
         # pop things off beginning
         format_version = lines.pop(0)
         assert format_version == "FormatVersion: 1"
-        timestamp = lines.pop(0)
-        assert timestamp.startswith("Timestamp: ")
-        timestamp = timestamp.split()[1].strip()
 
         message = lines.pop(0)
         assert message.startswith("Message: ")
@@ -194,20 +191,22 @@ class Snapshot:
         ref_header = lines.pop(0)
         assert ref_header == "Refs:"
 
-        refs = {}
+        refs = []
 
         while lines:
             ref = lines.pop(0)
             ref_name, sha1 = ref.split(":")
-            refs[ref_name.strip()] = sha1.strip()
+            refs.append((ref_name, sha1))
 
         return cls(
             id=commit_id,
             message=message,
             refs=refs,
             head=head,
-            index=index,
-            workdir=workdir,
+            index_commit=index,
+            workdir_commit=workdir,
+            index_tree=None,
+            workdir_tree=None,
         )
 
     def restore(self):
@@ -296,6 +295,11 @@ def record_snapshot():
     snapshot.save()
 
 
+def restore_snapshot(commit_id):
+    snapshot = Snapshot.load(commit_id)
+    print(snapshot.format())
+
+
 def index_clean():
     try:
         # Use the 'git status' command to check the status of the working directory and index
@@ -313,73 +317,6 @@ def index_clean():
         return False
 
 
-def restore_snapshot(conn, snapshot_id):
-    if not index_clean():
-        print("Error: The index is not clean. Please commit or stash your changes.")
-        return
-
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            "SELECT timestamp, description FROM snapshots WHERE id = ?", (snapshot_id,)
-        )
-        snapshot_data = cursor.fetchone()
-
-        if not snapshot_data:
-            print("Snapshot with ID {} not found.".format(snapshot_id))
-            return
-
-        timestamp, description = snapshot_data
-
-        # Get the list of all refs using git for-each-ref
-        git_command = "git for-each-ref --format='%(refname)'"
-        process = subprocess.Popen(git_command, shell=True, stdout=subprocess.PIPE)
-        output, _ = process.communicate()
-        all_refs = [line.decode("utf-8").strip() for line in output.splitlines()]
-
-        # Restore the snapshot by checking out each ref to the respective commit hash
-        cursor.execute(
-            "SELECT ref_name, commit_hash FROM refs WHERE snapshot_id = ?",
-            (snapshot_id,),
-        )
-        refs_data = cursor.fetchall()
-
-        for ref_name, commit_hash in refs_data:
-            git_command = "git update-ref {} {}".format(ref_name, commit_hash)
-            subprocess.run(git_command, shell=True)
-
-        cursor.execute(
-            "SELECT ref_name FROM head WHERE snapshot_id = ?", (snapshot_id,)
-        )
-        head_data = cursor.fetchone()
-
-        if head_data:
-            head_ref = head_data[0]
-            reason = "[git-undo] restored from snapshot {}".format(snapshot_id)
-            subprocess.check_call(
-                ["git", "symbolic-ref", "HEAD", head_ref, "-m", reason]
-            )
-        else:
-            raise ValueError("No head ref found for snapshot {}".format(snapshot_id))
-
-        current_ref_names = set([x[0] for x in refs_data])
-        for ref in all_refs:
-            if ref not in current_ref_names:
-                git_command = "git update-ref -d {}".format(ref)
-                subprocess.check_output(git_command, shell=True)
-
-        print(
-            "Restored snapshot (ID: {}) created at {} with description: {}".format(
-                snapshot_id, timestamp, description
-            )
-        )
-
-    except subprocess.CalledProcessError as e:
-        print("Error restoring snapshot:", e)
-    except ValueError as e:
-        print("Error restoring snapshot:", e)
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Git Snapshot Tool")
 
@@ -394,7 +331,7 @@ def parse_args():
     restore_parser = record_parser.add_parser(
         "restore", help="Restore a specific snapshot"
     )
-    restore_parser.add_argument("snapshot_id", type=int, help="Snapshot ID to restore")
+    restore_parser.add_argument("snapshot_id", type=str, help="Snapshot ID to restore")
 
     args = parser.parse_args()
 
@@ -406,8 +343,7 @@ def parse_args():
         install_hooks()
     elif args.subcommand == "restore":
         if args.snapshot_id:
-            conn = open_db()
-            restore_snapshot(conn, args.snapshot_id)
+            restore_snapshot(args.snapshot_id)
         else:
             print("Snapshot ID is required for the 'restore' subcommand.")
     else:
