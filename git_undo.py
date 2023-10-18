@@ -28,12 +28,7 @@ GIT_DIR = repo.workdir
 
 
 def snapshot_head():
-    try:
-        head_ref = check_output("git symbolic-ref HEAD", stderr=subprocess.DEVNULL)
-        if head_ref:
-            return head_ref
-    except subprocess.CalledProcessError:
-        return check_output("git rev-parse HEAD", stderr=subprocess.DEVNULL)
+    return repo.references["HEAD"].target
 
 
 def snapshot_refs():
