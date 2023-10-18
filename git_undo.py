@@ -110,38 +110,24 @@ def add_undo_entry(tree, message, index_commit, workdir_commit):
 
 def make_commit(tree):
     date = datetime.datetime(1970, 1, 1, 0, 0, 0)
-    return check_output(
-        [
-            "git",
-            "-c",
-            "core.hooksPath=/dev/null",
-            "-c",
-            "user.name=git-undo",
-            "-c",
-            "user.email=undo@example.com",
-            "commit-tree",
-            tree,
-            "-m",
-            f"snapshot",
-        ],
-        env={
-            "GIT_AUTHOR_DATE": date.isoformat(),
-            "GIT_COMMITTER_DATE": date.isoformat(),
-        },
+    commit = repo.create_commit(
+        None,
+        pygit2.Signature("git-undo", "undo@example.com", int(date.timestamp())),
+        pygit2.Signature("git-undo", "undo@example.com", int(date.timestamp())),
+        "snapshot",
+        tree,
+        [],
     )
+    return str(commit)
 
 
 def snapshot_index():
     index_filename = os.path.join(GIT_DIR, ".git", "index")
     our_index = os.path.join(GIT_DIR, ".git", "undo-index")
     check_output(["cp", index_filename, our_index])
-    tree = check_output(
-        ["git", "-c", "core.hooksPath=/dev/null", "write-tree"],
-        env={
-            "GIT_INDEX_FILE": our_index,
-        },
-    )
-    return tree, make_commit(tree)
+    index = pygit2.Index(our_index)
+    tree = index.write_tree(repo)
+    return str(tree), make_commit(str(tree))
 
 
 def snapshot_workdir(index_commit):
