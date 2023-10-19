@@ -206,7 +206,7 @@ class Snapshot:
         while lines:
             ref = lines.pop(0)
             ref_name, sha1 = ref.split(":")
-            refs.append((ref_name, sha1))
+            refs.append((ref_name.strip(), sha1.strip()))
 
         return cls(
             id=commit_id,
@@ -223,9 +223,9 @@ class Snapshot:
         # restore workdir and index
         check_output(["git", "restore", "--source", self.workdir_commit, "."])
         check_output(["git", "restore", "--source", self.index_commit, "--staged", "."])
-        repo.head.set_target(self.head)
+        repo.references.create("HEAD", self.head, force=True)
         for ref, target in self.refs:
-            repo.references[ref].set_target(target)
+            repo.references.create(ref, target, force=True)
 
 
 def get_head():
