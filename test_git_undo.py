@@ -45,6 +45,8 @@ def test_basic_snapshot():
     assert len(all_snapshots) == 3
 
 
+# todo: test that restoring most recent snapshot is a no-op
+
 # def test_successive_snapshots():
 #    return
 #    git_commands = make_git_commands()
