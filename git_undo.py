@@ -67,6 +67,7 @@ def snapshot_index(repo):
 
 def snapshot_workdir(repo, index_commit):
     our_index = os.path.join(repo.workdir, ".git", "undo-index")
+    check_output(["cp", os.path.join(repo.path, "index"), our_index])
     env = {
         "GIT_INDEX_FILE": our_index,
     }
