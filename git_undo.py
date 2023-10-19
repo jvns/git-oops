@@ -221,8 +221,29 @@ class Snapshot:
 
     def restore(self, repo):
         # restore workdir and index
-        check_output(["git", "restore", "--source", self.workdir_commit, "."])
-        check_output(["git", "restore", "--source", self.index_commit, "--staged", "."])
+        check_output(
+            [
+                "git",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "restore",
+                "--source",
+                self.workdir_commit,
+                ".",
+            ]
+        )
+        check_output(
+            [
+                "git",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "restore",
+                "--source",
+                self.index_commit,
+                "--staged",
+                ".",
+            ]
+        )
         repo.references.create("HEAD", self.head, force=True)
         for ref, target in self.refs:
             repo.references.create(ref, target, force=True)
