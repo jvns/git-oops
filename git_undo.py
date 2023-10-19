@@ -218,25 +218,13 @@ class Snapshot:
             workdir_tree=None,
         )
 
-    def restore(self):
-        # Restore the snapshot by checking out each ref to the respective commit hash
-        for ref_name, commit_hash in self.refs:
-            git_command = f"git update-ref {ref_name} {commit_hash}"
-            subprocess.run(git_command, shell=True)
-        head_ref = self.refs[-1][0]
-        reason = "[git-undo] restored from snapshot {}".format(self.id)
-        subprocess.check_call(["git", "symbolic-ref", "HEAD", head_ref, "-m", reason])
-        current_refs = [ref[0] for ref in self.refs]
-        all_refs = [
-            line.strip()
-            for line in check_output(
-                "git for-each-ref --format='%(refname)'"
-            ).splitlines()
-        ]
-        for ref in all_refs:
-            if ref not in current_refs:
-                git_command = f"git update-ref -d {ref}"
-                subprocess.check_call(git_command)
+    def restore(self, repo):
+        # restore workdir and index
+        check_output(["git", "restore", "--source", self.workdir_commit, "."])
+        check_output(["git", "restore", "--source", self.index_commit, "--staged", "."])
+        repo.head.set_target(self.head)
+        for ref, target in self.refs:
+            repo.references[ref].set_target(target)
 
 
 def get_head():
@@ -302,7 +290,7 @@ def record_snapshot(repo):
 
 def restore_snapshot(repo, commit_id):
     snapshot = Snapshot.load(repo, commit_id)
-    print(snapshot.format())
+    snapshot.restore(repo)
 
 
 def index_clean():
@@ -359,6 +347,7 @@ def parse_args():
 
 
 def get_git_command():
+    # todo: seems sketchy
     ppid = os.getppid()
 
     try:
