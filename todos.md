@@ -12,6 +12,8 @@ problems:
 - [ ] tests are really slow :(
 - [ ] don't include message in snapshot state (to make equality checking more accurate)
 - [ ] commit is like 4 operations, reset is 3 operations (idea: implement a wrapper?)
+- [ ] put `undo-index` in tmp file instead of `.git`
+- [ ] use libgit2 to get hook dir
 
 possible problems
 - [ ] the thing where index / workdir are commits is a little weird (idea: look at jj's internals)
