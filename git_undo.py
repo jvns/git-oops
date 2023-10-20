@@ -3,6 +3,7 @@ import subprocess
 import argparse
 import os
 import time
+import curses
 
 import pygit2
 
@@ -184,11 +185,14 @@ class Snapshot:
 
         message = lines.pop(0)
         assert message.startswith("Message: ")
-        message = message.split()[1].strip()
+        message = message[len("Message: ") :]
 
         head = lines.pop(0)
-        assert head.startswith("HEAD: ")
-        head = head.split()[1].strip()
+        assert head.startswith("HEAD:")
+        if len(head.split()) == 2:
+            head = head.split()[1].strip()
+        else:
+            head = None
 
         index = lines.pop(0)
         assert index.startswith("Index: ")
@@ -313,8 +317,7 @@ def record_snapshot(repo):
 def restore_snapshot(repo, commit_id):
     snapshot = Snapshot.load(repo, commit_id)
     changes = calculate_diff(repo, snapshot)
-    if confirm(repo, changes):
-        snapshot.restore(repo)
+    print(format_changes(repo, changes))
 
 
 def calculate_diff(repo, then):
@@ -376,22 +379,21 @@ def compare(repo, old_commit, new_commit):
         raise Exception("should not be here")
 
 
-def confirm(repo, changes):
+def format_changes(repo, changes):
+    result = []
     for ref, (old_target, new_target) in changes["refs"].items():
-        print(f"{ref}:", compare(repo, old_target, new_target))
+        result.append(f"{ref}: " + compare(repo, old_target, new_target))
 
     if changes["HEAD"]:
         old_target, new_target = changes["HEAD"]
-        print(f"will move from branch {old_target} to {new_target}")
+        result.append(f"will move from branch {old_target} to {new_target}")
     if changes["workdir"]:
         old_target, new_target = changes["workdir"]
         # ask if user wants diff
-        prompt = f"Working directory will change. Show diff? [y/N] "
-        if input(prompt).lower() == "y":
-            subprocess.check_call(["git", "diff", new_target, old_target])
+        result.append("Diff:")
+        result.append(check_output(["git", "diff", new_target, old_target]))
 
-    prompt = "Restore snapshot? [y/N] "
-    return input(prompt).lower() == "y"
+    return "\n".join(result)
 
 
 def index_clean():
@@ -435,7 +437,7 @@ def parse_args():
     if args.subcommand == "record":
         record_snapshot(repo)
     elif args.subcommand == "undo":
-        undo_snapshot(repo)
+        CursesApp(repo)
     elif args.subcommand == "init":
         install_hooks(repo)
     elif args.subcommand == "restore":
@@ -474,8 +476,113 @@ def get_message(repo):
     return get_reflog_message(repo)
 
 
-if __name__ == "__main__":
+def main():
     start = time.time()
     parse_args()
     elapsed = time.time() - start
     print(f"Time taken: {elapsed:.2f}s")
+
+
+class CursesApp:
+    def __init__(self, repo):
+        self.items = Snapshot.load_all(repo)
+        self.current_item = 0
+        self.pad_pos = 0  # Position of the viewport in the pad (top line)
+        self.repo = repo
+        curses.wrapper(self.run)
+
+    def run(self, stdscr):
+        self.stdscr = stdscr
+        self.left_win = None
+        self.right_win = None
+        self.setup_curses()
+        self.main_loop()
+
+    def setup_curses(self):
+        curses.curs_set(0)
+        self.stdscr.nodelay(1)
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
+        self.update_windows()
+
+    def main_loop(self):
+        while True:
+            self.draw_items()
+            self.draw_details()
+
+            max_y, max_x = self.stdscr.getmaxyx()
+            try:
+                self.left_win.refresh(
+                    self.pad_pos, 0, 0, 0, max_y - 1, max_x // 2 - 1
+                )  # Displays a portion of the pad
+            except curses.error:
+                pass  # Suppress errors that may arise when the viewport is at the bottom and can't scroll further
+            self.right_win.refresh()
+
+            self.handle_input()
+
+    def update_windows(self):
+        max_y, max_x = self.stdscr.getmaxyx()
+        center_x = max_x // 2
+
+        if self.left_win:
+            del self.left_win  # Delete the previous window object to avoid memory leak
+
+        pad_height = len(self.items) + 2  # Extra lines for box; adjust as needed
+        self.left_win = curses.newpad(
+            pad_height, center_x
+        )  # Creating a pad instead of a subwin
+        self.left_win.box()
+
+        if self.right_win:
+            del self.right_win
+        self.right_win = self.stdscr.subwin(max_y, max_x - center_x, 0, center_x)
+        self.right_win.box()
+
+    def draw_items(self):
+        self.left_win.box()  # Re-draw box after clearing
+        for index, item in enumerate(self.items):
+            message = str(item.message)
+            if index == self.current_item:
+                self.left_win.addstr(
+                    index + 1, 1, message, curses.color_pair(1)
+                )  # +1 to account for box's border
+            else:
+                try:
+                    self.left_win.addstr(index + 1, 1, message)
+                except curses.error:
+                    print("Error drawing item:", item.id, index)
+
+    def draw_details(self):
+        self.right_win.clear()
+        self.right_win.box()  # Re-draw box after clearing
+
+        snapshot = self.items[self.current_item]
+        changes = calculate_diff(self.repo, snapshot)
+        message = format_changes(self.repo, changes)
+        for index, line in enumerate(message.split("\n")[:15]):
+            self.right_win.addstr(index + 1, 1, line)  # +1 to account for box's border
+
+    def handle_input(self):
+        key = self.stdscr.getch()
+        max_y, _ = self.stdscr.getmaxyx()
+
+        if key == -1:
+            # No input
+            time.sleep(0.5)  # Sleep briefly to prevent 100% CPU usage
+        elif key == ord("q"):
+            exit()
+        elif key == curses.KEY_DOWN and self.current_item < len(self.items) - 1:
+            self.current_item += 1
+            if self.current_item >= max_y - 2:  # Adjust the condition as needed
+                self.pad_pos += 1  # Scroll the pad down
+        elif key == curses.KEY_UP and self.current_item > 0:
+            self.current_item -= 1
+            if self.current_item < self.pad_pos:
+                self.pad_pos -= 1  # Scroll the pad up
+
+        elif key == curses.KEY_RESIZE:
+            self.update_windows()  # Recalculate window dimensions and redraw
+
+
+if __name__ == "__main__":
+    main()
