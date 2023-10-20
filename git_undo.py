@@ -391,7 +391,7 @@ def format_changes(repo, changes):
         old_target, new_target = changes["workdir"]
         # ask if user wants diff
         result.append("Diff:")
-        result.append(check_output(["git", "diff", new_target, old_target]))
+        result.append(check_output(["git", "diff", "--stat", new_target, old_target]))
 
     return "\n".join(result)
 
