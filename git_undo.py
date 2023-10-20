@@ -160,7 +160,7 @@ class Snapshot:
         if last_commit:
             last_message = repo[last_commit].message
             if last_message == message:
-                print("No changes to save")
+                # print("No changes to save")
                 return
 
         return add_undo_entry(
@@ -505,20 +505,24 @@ class CursesApp:
         self.update_windows()
 
     def main_loop(self):
+        changed = True
         while True:
-            self.draw_items()
-            self.draw_details()
+            if changed:
+                self.refresh()
+            changed = self.handle_input()
 
-            max_y, max_x = self.stdscr.getmaxyx()
-            try:
-                self.left_win.refresh(
-                    self.pad_pos, 0, 0, 0, max_y - 1, max_x // 2 - 1
-                )  # Displays a portion of the pad
-            except curses.error:
-                pass  # Suppress errors that may arise when the viewport is at the bottom and can't scroll further
-            self.right_win.refresh()
+    def refresh(self):
+        self.draw_items()
+        self.draw_details()
 
-            self.handle_input()
+        max_y, max_x = self.stdscr.getmaxyx()
+        try:
+            self.left_win.refresh(
+                self.pad_pos, 0, 0, 0, max_y - 1, max_x // 2 - 1
+            )  # Displays a portion of the pad
+        except curses.error:
+            pass  # Suppress errors that may arise when the viewport is at the bottom and can't scroll further
+        self.right_win.refresh()
 
     def update_windows(self):
         max_y, max_x = self.stdscr.getmaxyx()
@@ -559,7 +563,7 @@ class CursesApp:
         snapshot = self.items[self.current_item]
         changes = calculate_diff(self.repo, snapshot)
         message = format_changes(self.repo, changes)
-        for index, line in enumerate(message.split("\n")[:15]):
+        for index, line in enumerate(message.split("\n")[:25]):
             self.right_win.addstr(index + 1, 1, line)  # +1 to account for box's border
 
     def handle_input(self):
@@ -568,7 +572,8 @@ class CursesApp:
 
         if key == -1:
             # No input
-            time.sleep(0.5)  # Sleep briefly to prevent 100% CPU usage
+            time.sleep(0.01)  # Sleep briefly to prevent 100% CPU usage
+            return False
         elif key == ord("q"):
             exit()
         elif key == curses.KEY_DOWN and self.current_item < len(self.items) - 1:
@@ -582,6 +587,9 @@ class CursesApp:
 
         elif key == curses.KEY_RESIZE:
             self.update_windows()  # Recalculate window dimensions and redraw
+        else:
+            return False
+        return True
 
 
 if __name__ == "__main__":
