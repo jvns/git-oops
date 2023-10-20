@@ -380,6 +380,16 @@ def confirm(repo, changes):
     for ref, (old_target, new_target) in changes["refs"].items():
         print(f"{ref}:", compare(repo, old_target, new_target))
 
+    if changes["HEAD"]:
+        old_target, new_target = changes["HEAD"]
+        print(f"will move from branch {old_target} to {new_target}")
+    if changes["workdir"]:
+        old_target, new_target = changes["workdir"]
+        # ask if user wants diff
+        prompt = f"Working directory will change. Show diff? [y/N] "
+        if input(prompt).lower() == "y":
+            subprocess.check_call(["git", "diff", new_target, old_target])
+
     return False
 
 
