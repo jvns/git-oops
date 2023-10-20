@@ -390,7 +390,8 @@ def confirm(repo, changes):
         if input(prompt).lower() == "y":
             subprocess.check_call(["git", "diff", new_target, old_target])
 
-    return False
+    prompt = "Restore snapshot? [y/N] "
+    return input(prompt).lower() == "y"
 
 
 def index_clean():
