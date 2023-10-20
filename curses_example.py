@@ -6,12 +6,12 @@ class CursesApp:
     def __init__(self):
         self.items = ["Item 1", "Item 2", "Item 3", "Item 4"]
         self.current_item = 0
-        self.stdscr = None
-        self.left_win = None
-        self.right_win = None
+        curses.wrapper(self.run)
 
     def run(self, stdscr):
         self.stdscr = stdscr
+        self.left_win = None
+        self.right_win = None
         self.setup_curses()
         self.main_loop()
 
@@ -81,4 +81,3 @@ class CursesApp:
 
 if __name__ == "__main__":
     app = CursesApp()
-    curses.wrapper(app.run)
