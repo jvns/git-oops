@@ -311,6 +311,7 @@ def record_snapshot(repo):
 
 
 def restore_snapshot(repo, commit_id):
+    record_snapshot(repo)
     snapshot = Snapshot.load(repo, commit_id)
     snapshot.restore(repo)
 

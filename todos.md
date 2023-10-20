@@ -16,6 +16,7 @@ problems:
 - [ ] use libgit2 to get hook dir
 - [ ] use GIT_DIR environment variable to get git dir when in a hook
 - [ ] we don't update reflog when updating HEAD / other references
+- [ ] no diffing in restore
 
 possible problems
 - [ ] the thing where index / workdir are commits is a little weird (idea: look at jj's internals)
