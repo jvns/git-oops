@@ -311,9 +311,76 @@ def record_snapshot(repo):
 
 
 def restore_snapshot(repo, commit_id):
-    record_snapshot(repo)
     snapshot = Snapshot.load(repo, commit_id)
-    snapshot.restore(repo)
+    changes = calculate_diff(repo, snapshot)
+    if confirm(repo, changes):
+        snapshot.restore(repo)
+
+
+def calculate_diff(repo, then):
+    snapshot_id = record_snapshot(repo)
+    now = Snapshot.load(repo, snapshot_id)
+    # get list of changed refs
+    changes = {
+        "refs": {},
+        "HEAD": None,
+        "workdir": None,
+        "index": None,
+    }
+
+    for ref, new_target in now.refs:
+        old_target = dict(then.refs).get(ref)
+        if old_target != new_target:
+            changes["refs"][ref] = (old_target, new_target)
+
+    if then.head != now.head:
+        changes["HEAD"] = (then.head, now.head)
+    if then.workdir_commit != now.workdir_commit:
+        changes["workdir"] = (then.workdir_commit, now.workdir_commit)
+    if then.index_commit != now.index_commit:
+        changes["index"] = (then.index_commit, now.index_commit)
+    return changes
+
+
+def count_commits_between(repo, base, target):
+    walker = repo.walk(target, pygit2.GIT_SORT_TOPOLOGICAL)
+
+    # Count the number of commits between the base and old_commit
+    commit_count = 0
+    for commit in walker:
+        if commit.id == base:
+            break
+        commit_count += 1
+
+    return commit_count
+
+
+def compare(repo, old_commit, new_commit):
+    base = repo.merge_base(old_commit, new_commit)
+    # get number of commits between base and old_commit
+
+    old_count = count_commits_between(repo, base, old_commit)
+    new_count = count_commits_between(repo, base, new_commit)
+
+    if old_count > 0 and new_count > 0:
+        return f"have diverged by {old_count} and {new_count} commits"
+    elif old_count == 1:
+        return f"will move forward by {old_count} commit"
+    elif old_count > 1:
+        return f"will move forward by {old_count} commits"
+    elif new_count == 1:
+        return f"will move back by {new_count} commit"
+    elif new_count > 1:
+        return f"will move back by {new_count} commits"
+    else:
+        raise Exception("should not be here")
+
+
+def confirm(repo, changes):
+    for ref, (old_target, new_target) in changes["refs"].items():
+        print(f"{ref}:", compare(repo, old_target, new_target))
+
+    return False
 
 
 def index_clean():
