@@ -318,8 +318,8 @@ def restore_snapshot(repo, commit_id):
 
 
 def calculate_diff(repo, then):
-    snapshot_id = record_snapshot(repo)
-    now = Snapshot.load(repo, snapshot_id)
+    now = Snapshot.record(repo)
+    now.save(repo)
     # get list of changed refs
     changes = {
         "refs": {},
@@ -330,7 +330,7 @@ def calculate_diff(repo, then):
 
     for ref, new_target in now.refs:
         old_target = dict(then.refs).get(ref)
-        if old_target != new_target:
+        if str(old_target) != str(new_target):
             changes["refs"][ref] = (old_target, new_target)
 
     if then.head != now.head:
