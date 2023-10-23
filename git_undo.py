@@ -67,7 +67,7 @@ def snapshot_index(repo):
 
 
 def snapshot_workdir(repo, index_commit):
-    our_index = os.path.join(repo.workdir, ".git", "undo-index")
+    our_index = os.path.join(repo.path, "undo-index")
     check_output(["cp", os.path.join(repo.path, "index"), our_index])
     env = {
         "GIT_INDEX_FILE": our_index,
@@ -316,13 +316,11 @@ def record_snapshot(repo):
 
 def restore_snapshot(repo, commit_id):
     snapshot = Snapshot.load(repo, commit_id)
-    changes = calculate_diff(repo, snapshot)
-    print(format_changes(repo, changes))
+    # changes = calculate_diff(repo, snapshot)
+    # print(format_changes(repo, changes))
 
 
-def calculate_diff(repo, then):
-    now = Snapshot.record(repo)
-    now.save(repo)
+def calculate_diff(now, then):
     # get list of changed refs
     changes = {
         "refs": {},
@@ -379,8 +377,9 @@ def compare(repo, old_commit, new_commit):
         raise Exception("should not be here")
 
 
-def format_changes(repo, changes):
+def format_changes(repo, changes, now, then):
     result = []
+    result.append(f"======= {then.id} =======")
     for ref, (old_target, new_target) in changes["refs"].items():
         result.append(f"{ref}: " + compare(repo, old_target, new_target))
 
@@ -392,6 +391,26 @@ def format_changes(repo, changes):
         # ask if user wants diff
         result.append("Diff:")
         result.append(check_output(["git", "diff", "--stat", new_target, old_target]))
+
+        result.append("`git status`:")
+        result.append("Staged changes:")
+        result.append(
+            check_output(
+                [
+                    "git",
+                    "diff",
+                    "--stat",
+                    dict(then.refs)["refs/heads/main"],
+                    then.index_commit,
+                ]
+            )
+        )
+        result.append("Unstaged changes:")
+        result.append(
+            check_output(
+                ["git", "diff", "--stat", then.workdir_commit, then.index_commit]
+            )
+        )
 
     return "\n".join(result)
 
@@ -561,8 +580,10 @@ class CursesApp:
         self.right_win.box()  # Re-draw box after clearing
 
         snapshot = self.items[self.current_item]
-        changes = calculate_diff(self.repo, snapshot)
-        message = format_changes(self.repo, changes)
+        now = Snapshot.record(self.repo)
+        now.save(self.repo)
+        changes = calculate_diff(now, snapshot)
+        message = format_changes(self.repo, changes, now, snapshot)
         for index, line in enumerate(message.split("\n")[:25]):
             self.right_win.addstr(index + 1, 1, line)  # +1 to account for box's border
 
