@@ -394,13 +394,14 @@ def format_changes(repo, changes, now, then):
 
         result.append("`git status`:")
         result.append("Staged changes:")
+        then_head = resolve_head(then)
         result.append(
             check_output(
                 [
                     "git",
                     "diff",
                     "--stat",
-                    dict(then.refs)["refs/heads/main"],
+                    then_head,
                     then.index_commit,
                 ]
             )
@@ -412,7 +413,17 @@ def format_changes(repo, changes, now, then):
             )
         )
 
+        result.append("")
+        result.append("LOG:")
+        result.append(check_output(["git", "log", "--oneline", "-n", "3", then_head]))
+
     return "\n".join(result)
+
+
+def resolve_head(snapshot):
+    if snapshot.head.startswith("refs/"):
+        return dict(snapshot.refs)[snapshot.head]
+    return snapshot.head
 
 
 def index_clean():
