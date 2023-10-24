@@ -389,10 +389,11 @@ def format_changes(repo, changes, now, then):
     if changes["workdir"]:
         old_target, new_target = changes["workdir"]
         # ask if user wants diff
-        result.append("Diff:")
+        result.append("--- diff ---")
         result.append(check_output(["git", "diff", "--stat", new_target, old_target]))
 
-        result.append("`git status`:")
+        result.append("")
+        result.append("--- status ---")
         result.append("Staged changes:")
         then_head = resolve_head(then)
         result.append(
@@ -414,7 +415,7 @@ def format_changes(repo, changes, now, then):
         )
 
         result.append("")
-        result.append("LOG:")
+        result.append("--- log ---")
         result.append(check_output(["git", "log", "--oneline", "-n", "3", then_head]))
 
     return "\n".join(result)
