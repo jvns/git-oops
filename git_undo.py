@@ -29,8 +29,11 @@ def snapshot_head(repo):
 
 def snapshot_refs(repo):
     refs = [(ref, repo.references[ref].target) for ref in repo.references]
-    refs = [ref for ref in refs if not ref[0].startswith("refs/remotes/")]
-    refs = [ref for ref in refs if not ref[0].startswith("refs/heads/git-undo")]
+    refs = [
+        ref
+        for ref in refs
+        if ref[0].startswith("refs/tags/") or ref[0].startswith("refs/heads")
+    ]
     return refs
 
 
