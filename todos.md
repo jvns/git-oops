@@ -9,13 +9,15 @@ problems:
 - [X] fix "ref HEAD is not a symbolic ref" during rebase
 - [X] need to implement restore
 - [X] no diffing in restore
-- [ ] tests are really slow :(
-- [ ] some snapshots are identical
+- [ ] bug: `.git/hooks` might not be accurate to get hooks dir, use libgit2 instead
+- [ ] bug: it overwrites all your git hooks
+- [ ] bug: some snapshots are identical
 - [ ] commit is like 4 operations, reset is 3 operations (idea: implement a wrapper?)
-- [ ] `.git/hooks` might not be accurate to get hooks dir, use libgit2 instead
+- [ ] feature: add a "preview" command
+- [ ] feature: there's no way to uninstall
 - [ ] possibly use GIT_DIR environment variable to get git dir when in a hook for better accuracy
+- [ ] tests are really slow :(
 - [ ] we don't update reflog when updating HEAD / other references
-- [ ] add a "preview" command
 
 possible problems
 - [ ] the thing where index / workdir are commits is a little weird (idea: look at jj's internals)
