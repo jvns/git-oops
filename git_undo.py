@@ -7,6 +7,8 @@ import curses
 
 import pygit2
 
+UNDO_REF = "refs/git-undo"
+
 
 def check_output(cmd, **kwargs):
     is_shell = type(cmd) is str
@@ -37,17 +39,33 @@ def snapshot_refs(repo):
     return refs
 
 
-def add_undo_entry(repo, tree, message, index_commit, workdir_commit):
+def add_undo_entry(repo, tree, message, reflog_message, index_commit, workdir_commit):
     parents = [index_commit, workdir_commit]
+    signature = pygit2.Signature("git-undo", "undo@example.com")
+    undo_ref = None
+    old_target = None
     try:
-        undo_commit = repo.references["refs/git-undo"]
-        parents.insert(0, undo_commit.target)
+        undo_ref = repo.references[UNDO_REF]
+        old_target = undo_ref.target
     except KeyError:
         pass
-    signature = pygit2.Signature("git-undo", "undo@example.com")
-    return repo.create_commit(
-        "refs/git-undo", signature, signature, message, tree, parents
-    )
+    commit_id = repo.create_commit(None, signature, signature, message, tree, parents)
+    # `repo.create_reference` says:
+    # > The message for the reflog will be ignored if the reference does not
+    # > belong in the standard set (HEAD, branches and remote-tracking branches)
+    # > and it does not have a reflog.
+    # so we need to create the reflog explicitly
+
+    reflog_file = repo.path + "/logs/" + UNDO_REF
+
+    # create empty file if it doesn't exist
+    if not os.path.exists(reflog_file):
+        open(reflog_file, "a").close()
+
+    if undo_ref:
+        undo_ref.set_target(commit_id, reflog_message)
+    else:
+        repo.create_reference(UNDO_REF, str(commit_id), message=reflog_message)
 
 
 def make_commit(repo, tree):
@@ -128,13 +146,7 @@ class Snapshot:
 
     @classmethod
     def load_all(cls, repo):
-        # get all commits from `git-undo` branch
-        branch = repo.references["refs/git-undo"]
-        return [
-            Snapshot.load(repo, x.id)
-            for x in repo.walk(branch.target, pygit2.GIT_SORT_TOPOLOGICAL)
-            if x.message.startswith("FormatVersion: 1")
-        ]
+        return [Snapshot.load(repo, x.oid_new) for x in repo.references[UNDO_REF].log()]
 
     def format(self):
         # no newlines in message
@@ -142,7 +154,7 @@ class Snapshot:
         return "\n".join(
             [
                 f"FormatVersion: 1",
-                f"Message: {self.message}",
+                # f"Message: {self.message}",
                 # todo: add undo
                 f"HEAD: {self.head}",
                 f"Index: {self.index_commit}",
@@ -159,7 +171,7 @@ class Snapshot:
 
         message = self.format()
 
-        last_commit = read_branch(repo, "refs/git-undo")
+        last_commit = read_branch(repo, UNDO_REF)
         if last_commit:
             last_message = repo[last_commit].message
             if last_message == message:
@@ -169,6 +181,7 @@ class Snapshot:
         return add_undo_entry(
             repo=repo,
             message=message,
+            reflog_message=self.message,
             tree=self.workdir_tree,
             index_commit=self.index_commit,
             workdir_commit=self.workdir_commit,
@@ -186,9 +199,9 @@ class Snapshot:
         format_version = lines.pop(0)
         assert format_version == "FormatVersion: 1"
 
-        message = lines.pop(0)
-        assert message.startswith("Message: ")
-        message = message[len("Message: ") :]
+        # message = lines.pop(0)
+        # assert message.startswith("Message: ")
+        # message = message[len("Message: ") :]
 
         head = lines.pop(0)
         assert head.startswith("HEAD:")
