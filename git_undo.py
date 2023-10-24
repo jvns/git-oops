@@ -377,13 +377,43 @@ def compare(repo, old_commit, new_commit):
         raise Exception("should not be here")
 
 
+def format_status(result, then, now):
+    then_head = resolve_head(then)
+    staged_diff = check_output(
+        [
+            "git",
+            "diff",
+            "--stat",
+            then_head,
+            then.index_commit,
+        ]
+    )
+    unstaged_diff = check_output(
+        ["git", "diff", "--stat", then.workdir_commit, then.index_commit]
+    )
+    if len(staged_diff.strip()) == 0 and len(unstaged_diff.strip()) == 0:
+        return
+    result.append("--- status ---")
+    if len(staged_diff.strip()) > 0:
+        result.append("Staged changes:")
+        result.append(staged_diff)
+
+    if len(unstaged_diff.strip()) > 0:
+        result.append("Unstaged changes:")
+        result.append(unstaged_diff)
+
+    result.append("")
+
+
 def format_changes(repo, changes, now, then):
     result = []
-    result.append(f"======= {then.id} =======")
-    for ref, (old_target, new_target) in changes["refs"].items():
-        result.append(f"{ref}: " + compare(repo, old_target, new_target))
+    if len(changes["refs"]) > 0:
+        result.append("--- refs ---")
+        for ref, (old_target, new_target) in changes["refs"].items():
+            result.append(f"{ref}: " + compare(repo, old_target, new_target))
 
     if changes["HEAD"]:
+        result.append("--- current branch ---")
         old_target, new_target = changes["HEAD"]
         result.append(f"will move from branch {old_target} to {new_target}")
     if changes["workdir"]:
@@ -392,31 +422,10 @@ def format_changes(repo, changes, now, then):
         result.append("--- diff ---")
         result.append(check_output(["git", "diff", "--stat", new_target, old_target]))
 
-        result.append("")
-        result.append("--- status ---")
-        result.append("Staged changes:")
-        then_head = resolve_head(then)
-        result.append(
-            check_output(
-                [
-                    "git",
-                    "diff",
-                    "--stat",
-                    then_head,
-                    then.index_commit,
-                ]
-            )
-        )
-        result.append("Unstaged changes:")
-        result.append(
-            check_output(
-                ["git", "diff", "--stat", then.workdir_commit, then.index_commit]
-            )
-        )
-
-        result.append("")
-        result.append("--- log ---")
-        result.append(check_output(["git", "log", "--oneline", "-n", "3", then_head]))
+    format_status(result, then, now)
+    then_head = resolve_head(then)
+    result.append("--- log ---")
+    result.append(check_output(["git", "log", "--oneline", "-n", "3", then_head]))
 
     return "\n".join(result)
 
@@ -524,8 +533,6 @@ class CursesApp:
 
     def run(self, stdscr):
         self.stdscr = stdscr
-        self.left_win = None
-        self.right_win = None
         self.setup_curses()
         self.main_loop()
 
@@ -533,7 +540,6 @@ class CursesApp:
         curses.curs_set(0)
         self.stdscr.nodelay(1)
         curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
-        self.update_windows()
 
     def main_loop(self):
         changed = True
@@ -543,61 +549,26 @@ class CursesApp:
             changed = self.handle_input()
 
     def refresh(self):
-        self.draw_items()
         self.draw_details()
 
-        max_y, max_x = self.stdscr.getmaxyx()
-        try:
-            self.left_win.refresh(
-                self.pad_pos, 0, 0, 0, max_y - 1, max_x // 2 - 1
-            )  # Displays a portion of the pad
-        except curses.error:
-            pass  # Suppress errors that may arise when the viewport is at the bottom and can't scroll further
-        self.right_win.refresh()
-
-    def update_windows(self):
-        max_y, max_x = self.stdscr.getmaxyx()
-        center_x = max_x // 2
-
-        if self.left_win:
-            del self.left_win  # Delete the previous window object to avoid memory leak
-
-        pad_height = len(self.items) + 2  # Extra lines for box; adjust as needed
-        self.left_win = curses.newpad(
-            pad_height, center_x
-        )  # Creating a pad instead of a subwin
-        self.left_win.box()
-
-        if self.right_win:
-            del self.right_win
-        self.right_win = self.stdscr.subwin(max_y, max_x - center_x, 0, center_x)
-        self.right_win.box()
-
-    def draw_items(self):
-        self.left_win.box()  # Re-draw box after clearing
-        for index, item in enumerate(self.items):
-            message = str(item.message)
-            if index == self.current_item:
-                self.left_win.addstr(
-                    index + 1, 1, message, curses.color_pair(1)
-                )  # +1 to account for box's border
-            else:
-                try:
-                    self.left_win.addstr(index + 1, 1, message)
-                except curses.error:
-                    print("Error drawing item:", item.id, index)
+    def set_title(self, title):
+        title = " " + title + " "
+        # get screen width
+        _, maxx = self.stdscr.getmaxyx()
+        self.stdscr.addstr(0, (maxx - len(title)) // 2, title)
 
     def draw_details(self):
-        self.right_win.clear()
-        self.right_win.box()  # Re-draw box after clearing
+        self.stdscr.clear()
+        self.stdscr.box()  # Re-draw box after clearing
 
         snapshot = self.items[self.current_item]
+        self.set_title("back " + str(self.current_item) + ": " + str(snapshot.id)[:6])
         now = Snapshot.record(self.repo)
         now.save(self.repo)
         changes = calculate_diff(now, snapshot)
         message = format_changes(self.repo, changes, now, snapshot)
         for index, line in enumerate(message.split("\n")[:25]):
-            self.right_win.addstr(index + 1, 1, line)  # +1 to account for box's border
+            self.stdscr.addstr(index + 1, 1, line)  # +1 to account for box's border
 
     def handle_input(self):
         key = self.stdscr.getch()
@@ -611,15 +582,14 @@ class CursesApp:
             exit()
         elif key == curses.KEY_DOWN and self.current_item < len(self.items) - 1:
             self.current_item += 1
-            if self.current_item >= max_y - 2:  # Adjust the condition as needed
-                self.pad_pos += 1  # Scroll the pad down
+        elif key == curses.KEY_LEFT and self.current_item < len(self.items) - 1:
+            self.current_item += 1
         elif key == curses.KEY_UP and self.current_item > 0:
             self.current_item -= 1
-            if self.current_item < self.pad_pos:
-                self.pad_pos -= 1  # Scroll the pad up
-
+        elif key == curses.KEY_RIGHT and self.current_item > 0:
+            self.current_item -= 1
         elif key == curses.KEY_RESIZE:
-            self.update_windows()  # Recalculate window dimensions and redraw
+            pass
         else:
             return False
         return True
