@@ -33,7 +33,6 @@ def snapshot_refs(repo):
         ref
         for ref in refs
         if (ref[0].startswith("refs/tags/") or ref[0].startswith("refs/heads"))
-        and ref[0] != "refs/heads/git-undo"
     ]
     return refs
 
@@ -41,13 +40,13 @@ def snapshot_refs(repo):
 def add_undo_entry(repo, tree, message, index_commit, workdir_commit):
     parents = [index_commit, workdir_commit]
     try:
-        undo_commit = repo.references["refs/heads/git-undo"]
+        undo_commit = repo.references["refs/git-undo"]
         parents.insert(0, undo_commit.target)
     except KeyError:
         pass
     signature = pygit2.Signature("git-undo", "undo@example.com")
     return repo.create_commit(
-        "refs/heads/git-undo", signature, signature, message, tree, parents
+        "refs/git-undo", signature, signature, message, tree, parents
     )
 
 
@@ -130,7 +129,7 @@ class Snapshot:
     @classmethod
     def load_all(cls, repo):
         # get all commits from `git-undo` branch
-        branch = repo.references["refs/heads/git-undo"]
+        branch = repo.references["refs/git-undo"]
         return [
             Snapshot.load(repo, x.id)
             for x in repo.walk(branch.target, pygit2.GIT_SORT_TOPOLOGICAL)
@@ -160,7 +159,7 @@ class Snapshot:
 
         message = self.format()
 
-        last_commit = read_branch(repo, "refs/heads/git-undo")
+        last_commit = read_branch(repo, "refs/git-undo")
         if last_commit:
             last_message = repo[last_commit].message
             if last_message == message:
