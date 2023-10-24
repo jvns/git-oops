@@ -9,9 +9,10 @@ problems:
 - [X] fix "ref HEAD is not a symbolic ref" during rebase
 - [X] need to implement restore
 - [X] no diffing in restore
+- [X] bug: some snapshots are identical
+- [X] switch to reflog design
 - [ ] bug: `.git/hooks` might not be accurate to get hooks dir, use libgit2 instead
 - [ ] bug: it overwrites all your git hooks
-- [ ] bug: some snapshots are identical
 - [ ] commit is like 4 operations, reset is 3 operations (idea: implement a wrapper?)
 - [ ] feature: add a "preview" command
 - [ ] feature: there's no way to uninstall
