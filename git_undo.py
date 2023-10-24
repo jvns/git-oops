@@ -330,6 +330,8 @@ def calculate_diff(now, then):
     }
 
     for ref, new_target in now.refs:
+        if ref[:10] != "refs/heads" and ref[:9] != "refs/tags":
+            continue
         old_target = dict(then.refs).get(ref)
         if str(old_target) != str(new_target):
             changes["refs"][ref] = (old_target, new_target)
