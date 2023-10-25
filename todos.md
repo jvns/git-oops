@@ -19,8 +19,8 @@ problems:
 - [ ] feature: there's no way to uninstall
 - [ ] possibly use GIT_DIR environment variable to get git dir when in a hook for better accuracy
 - [ ] tests are really slow :(
-- [ ] it makes rebases pretty slow which I hate
 - [ ] we don't update reflog when updating HEAD / other references
+- [ ] it slows down commits LOT  (~60ms with no hooks -> -> 450ms). Rebases are painfully slow.
 
 possible problems
 - [ ] the thing where index / workdir are commits is a little weird (idea: look at jj's internals)
