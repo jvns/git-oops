@@ -446,8 +446,8 @@ def format_changes(repo, changes, now, then):
 
     if changes["HEAD"]:
         result.append("--- current branch ---")
-        old_target, new_target = changes["HEAD"]
-        result.append(f"will move from branch {old_target} to {new_target}")
+        then_target, now_target = changes["HEAD"]
+        result.append(f"will move from branch {now_target} to {then_target}")
     if changes["workdir"]:
         old_target, new_target = changes["workdir"]
         # ask if user wants diff
