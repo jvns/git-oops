@@ -83,13 +83,27 @@ def make_commit(repo, tree):
 
 
 def snapshot_index(repo):
-    tree = repo.index.write_tree(repo)
+    our_index = os.path.join(repo.path, "undo-index")
+    # it's important that we use `index.lock` instead of `index` here because
+    # we're often in the middle of an index transaction when snapshotting.
+    # Otherwise we'll give an incorrect impression of the current state of the index
+    #
+    # This is really kind of a weird thing to do (what if the transaction fails
+    # and git removes the `index.lock` without moving it to `index`? But for
+    # now it seems better than the alternative, which is that after the commit
+    # is made, in the `reference-transaction` hook it still appears as if we're
+    # using the old index.
+    if os.path.exists(os.path.join(repo.path, "index.lock")):
+        check_output(["cp", os.path.join(repo.path, "index.lock"), our_index])
+    else:
+        check_output(["cp", os.path.join(repo.path, "index"), our_index])
+    index = pygit2.Index(our_index)
+    tree = index.write_tree(repo)
     return str(tree), make_commit(repo, str(tree))
 
 
 def snapshot_workdir(repo, index_commit):
     our_index = os.path.join(repo.path, "undo-index")
-    check_output(["cp", os.path.join(repo.path, "index"), our_index])
     env = {
         "GIT_INDEX_FILE": our_index,
     }
