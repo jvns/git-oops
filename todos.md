@@ -34,3 +34,4 @@ possible problems
 - [ ] the thing where index / workdir are commits is a little weird (idea: look at jj's internals)
 - [ ] pygit2 dependency is problematic
 
+
