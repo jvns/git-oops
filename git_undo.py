@@ -409,7 +409,7 @@ def compare(repo, old_commit, new_commit):
         raise Exception("should not be here")
 
 
-def format_status(result, then, now):
+def format_status(then, now):
     then_head = resolve_head(then)
     staged_diff = check_output(
         [
@@ -424,8 +424,8 @@ def format_status(result, then, now):
         ["git", "diff", "--stat", then.workdir_commit, then.index_commit]
     )
     if len(staged_diff.strip()) == 0 and len(unstaged_diff.strip()) == 0:
-        return
-    result.append("--- status ---")
+        return ("git status", [])
+    result = []
     if len(staged_diff.strip()) > 0:
         result.append("Staged changes:")
         result.append(staged_diff)
@@ -434,32 +434,46 @@ def format_status(result, then, now):
         result.append("Unstaged changes:")
         result.append(unstaged_diff)
 
-    result.append("")
+    return ("git status", ("\n".join(result)).split("\n"))
 
 
 def format_changes(repo, changes, now, then):
-    result = []
+    boxes = []
     then_head = resolve_head(then)
-    if len(changes["refs"]) > 0:
-        result.append("--- refs ---")
-        for ref, (old_target, new_target) in changes["refs"].items():
-            result.append(f"{ref}: " + compare(repo, old_target, new_target))
-    result.append(f"--- log of {then.head} ---")
-    result.append(check_output(["git", "log", "--oneline", "-n", "3", then_head]))
+    boxes.append(
+        (
+            "refs",
+            [
+                f"{ref}: " + compare(repo, old_target, new_target)
+                for ref, (old_target, new_target) in changes["refs"].items()
+            ],
+        )
+    )
+    boxes.append(
+        (
+            "git log",
+            check_output(["git", "log", "--oneline", "-n", "3", then_head]).split("\n"),
+        )
+    )
 
     if changes["HEAD"]:
-        result.append("--- current branch ---")
         then_target, now_target = changes["HEAD"]
-        result.append(f"will move from branch {now_target} to {then_target}")
+        boxes.append(
+            ("current branch", [f"will move from branch {now_target} to {then_target}"])
+        )
     if changes["workdir"]:
         old_workdir, new_workdir = changes["workdir"]
-        # ask if user wants diff
-        result.append("--- diff from current working directory ---")
-        result.append(check_output(["git", "diff", "--stat", new_workdir, old_workdir]))
+        boxes.append(
+            (
+                "diff from current workdir",
+                check_output(["git", "diff", "--stat", new_workdir, old_workdir]).split(
+                    "\n"
+                ),
+            )
+        )
 
-    format_status(result, then, now)
-
-    return "\n".join(result)
+    boxes.append(format_status(then, now))
+    return boxes
 
 
 def resolve_head(snapshot):
@@ -589,6 +603,25 @@ class CursesApp:
         _, maxx = self.stdscr.getmaxyx()
         self.stdscr.addstr(0, (maxx - len(title)) // 2, title)
 
+    def draw_box(self, y, width, title="", content=[]):
+        if content == []:
+            content = [""]
+        x = 1
+        height = len(content) + 2  # +2 for top and bottom borders of the box
+        win = curses.newwin(height, width, y, x)
+        win.box()
+        # Add the title to the box
+        win.addstr(0, (width - len(title)) // 2, title)
+
+        # Add content to the box
+        for idx, line in enumerate(content):
+            win.addstr(idx + 1, 1, line)
+
+        return (
+            win,
+            y + height,
+        )  # Return the y-coordinate for the next box to ensure no overlap
+
     def draw_details(self):
         self.stdscr.clear()
         self.stdscr.box()  # Re-draw box after clearing
@@ -598,9 +631,16 @@ class CursesApp:
         now = Snapshot.record(self.repo)
         now.save(self.repo)
         changes = calculate_diff(now, snapshot)
-        message = format_changes(self.repo, changes, now, snapshot)
-        for index, line in enumerate(message.split("\n")[:25]):
-            self.stdscr.addstr(index + 1, 1, line)  # +1 to account for box's border
+        boxes = format_changes(self.repo, changes, now, snapshot)
+        self.windows = []
+        y_next = 1
+        for title, content in boxes:
+            win, y_next = self.draw_box(y_next, width=90, title=title, content=content)
+            self.windows.append(win)
+        # draw all the windows
+        self.stdscr.refresh()
+        for win in self.windows:
+            win.refresh()
 
     def handle_input(self):
         key = self.stdscr.getch()

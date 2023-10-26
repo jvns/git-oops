@@ -25,6 +25,7 @@ performance:
 - [ ] possibly use GIT_DIR environment variable to get git dir when in a hook for better accuracy
 - [ ] bug: `.git/hooks` might not be accurate to get hooks dir, use libgit2 instead
 - [ ] bug: it overwrites all your git hooks
+- [ ] 
 
 possible problems
 - [ ] the thing where index / workdir are commits is a little weird (idea: look at jj's internals)
