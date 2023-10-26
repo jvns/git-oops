@@ -439,25 +439,25 @@ def format_status(result, then, now):
 
 def format_changes(repo, changes, now, then):
     result = []
+    then_head = resolve_head(then)
     if len(changes["refs"]) > 0:
         result.append("--- refs ---")
         for ref, (old_target, new_target) in changes["refs"].items():
             result.append(f"{ref}: " + compare(repo, old_target, new_target))
+    result.append(f"--- log of {then.head} ---")
+    result.append(check_output(["git", "log", "--oneline", "-n", "3", then_head]))
 
     if changes["HEAD"]:
         result.append("--- current branch ---")
         then_target, now_target = changes["HEAD"]
         result.append(f"will move from branch {now_target} to {then_target}")
     if changes["workdir"]:
-        old_target, new_target = changes["workdir"]
+        old_workdir, new_workdir = changes["workdir"]
         # ask if user wants diff
-        result.append("--- diff ---")
-        result.append(check_output(["git", "diff", "--stat", new_target, old_target]))
+        result.append("--- diff from current working directory ---")
+        result.append(check_output(["git", "diff", "--stat", new_workdir, old_workdir]))
 
     format_status(result, then, now)
-    then_head = resolve_head(then)
-    result.append("--- log ---")
-    result.append(check_output(["git", "log", "--oneline", "-n", "3", then_head]))
 
     return "\n".join(result)
 
