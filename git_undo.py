@@ -340,7 +340,10 @@ fi
 
 
 def record_snapshot(repo):
+    if check_rebase(repo):
+        return
     snapshot = Snapshot.record(repo)
+
     return snapshot.save(repo)
 
 
@@ -435,6 +438,14 @@ def format_status(then, now):
         result.append(unstaged_diff)
 
     return ("git status", ("\n".join(result)).split("\n"))
+
+
+def check_rebase(repo):
+    if os.path.exists(os.path.join(repo.path, "rebase-apply")):
+        return True
+    if os.path.exists(os.path.join(repo.path, "rebase-merge")):
+        return True
+    return False
 
 
 def format_changes(repo, changes, now, then):

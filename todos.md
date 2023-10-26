@@ -17,6 +17,9 @@ problems:
 - [ ] feature: add a "preview" command
 - [ ] feature: there's no way to uninstall
 
+usability:
+- [ ] snapshots in the middle of a rebase are confusing
+
 performance:
 - [ ] tests are really slow :(
 - [ ] it slows down commits LOT  (~60ms with no hooks -> -> 450ms). Rebases are painfully slow.
