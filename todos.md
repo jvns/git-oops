@@ -13,14 +13,18 @@ problems:
 - [X] switch to reflog design
 - [X] bug: changes are both staged and unstaged at the same time when making a commit (solution: use `index.lock` instead of `index`)
 - [X] commit is like 4 operations, reset is 3 operations (idea: implement a wrapper?)
-- [ ] bug: `.git/hooks` might not be accurate to get hooks dir, use libgit2 instead
-- [ ] bug: it overwrites all your git hooks
+- [X] we don't update reflog when updating HEAD / other references
 - [ ] feature: add a "preview" command
 - [ ] feature: there's no way to uninstall
-- [ ] possibly use GIT_DIR environment variable to get git dir when in a hook for better accuracy
+
+performance:
 - [ ] tests are really slow :(
-- [ ] we don't update reflog when updating HEAD / other references
 - [ ] it slows down commits LOT  (~60ms with no hooks -> -> 450ms). Rebases are painfully slow.
+
+"portability" issues:
+- [ ] possibly use GIT_DIR environment variable to get git dir when in a hook for better accuracy
+- [ ] bug: `.git/hooks` might not be accurate to get hooks dir, use libgit2 instead
+- [ ] bug: it overwrites all your git hooks
 
 possible problems
 - [ ] the thing where index / workdir are commits is a little weird (idea: look at jj's internals)
