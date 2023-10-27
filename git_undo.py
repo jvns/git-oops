@@ -708,7 +708,7 @@ def draw_diverged_diagram(repo, then, now, ancestor):
     result.append("    ┬" + " " * 43 + "┬")
     result.append("    ┝" + "─" * 43 + "┘")
     result.append("    │")
-    result.append(f" {short(ancestor)} {truncate_message(ancestor.message)}")
+    result.append(f" {short(ancestor)} {truncate_message(ancestor.message, 60)}")
     return result
 
 
@@ -734,11 +734,10 @@ def draw_line_diagram(repo, then, now, ancestor):
     ]
 
 
-def truncate_message(message):
-    # truncate message to 34 chars max, with ellipsis
+def truncate_message(message, length=34):
     message = message.strip()
-    if len(message) > 34:
-        return message[:31] + "..."
+    if len(message) > length:
+        return message[: length - 3] + "..."
     return message
 
 
