@@ -37,7 +37,7 @@ def snapshot_refs(repo):
     return refs
 
 
-def add_undo_entry(repo, tree, message, reflog_message, index_commit, workdir_commit):
+def add_undo_entry(repo, tree, message, index_commit, workdir_commit):
     parents = [index_commit, workdir_commit]
     signature = pygit2.Signature("git-undo", "undo@example.com")
     undo_ref = None
@@ -60,6 +60,7 @@ def add_undo_entry(repo, tree, message, reflog_message, index_commit, workdir_co
     if not os.path.exists(reflog_file):
         open(reflog_file, "a").close()
 
+    reflog_message = "snapshot"
     if undo_ref:
         undo_ref.set_target(commit_id, reflog_message)
     else:
@@ -115,7 +116,6 @@ class Snapshot:
     def __init__(
         self,
         id,
-        message,
         refs,
         head,
         index_tree,
@@ -124,7 +124,6 @@ class Snapshot:
         workdir_commit,
     ):
         self.id = id
-        self.message = message
         self.refs = refs
         self.head = head
         self.index_tree = index_tree
@@ -147,7 +146,6 @@ class Snapshot:
         workdir_tree, workdir_commit = snapshot_workdir(repo, index_commit)
         return cls(
             id=None,
-            message=get_message(repo),
             refs=snapshot_refs(repo),
             head=snapshot_head(repo),
             index_commit=index_commit,
@@ -192,7 +190,6 @@ class Snapshot:
         return add_undo_entry(
             repo=repo,
             message=message,
-            reflog_message=self.message,
             tree=self.workdir_tree,
             index_commit=self.index_commit,
             workdir_commit=self.workdir_commit,
@@ -241,7 +238,6 @@ class Snapshot:
 
         return cls(
             id=commit_id,
-            message=message,
             refs=refs,
             head=head,
             index_commit=index,
@@ -531,31 +527,10 @@ def parse_args():
         print("Use 'record' or 'undo' as subcommands.")
 
 
-def get_git_command():
-    # todo: seems sketchy
-    ppid = os.getppid()
-
-    try:
-        gpid = check_output(["ps", "-o", "ppid=", "-p", str(ppid)])
-        output = check_output(["ps", "-o", "command=", "-p", str(gpid)])
-        parts = output.split()
-        parts[0] = os.path.basename(parts[0])
-        return " ".join(parts)
-    except subprocess.CalledProcessError:
-        return None
-
-
 def get_reflog_message(repo):
     head = repo.references.get("HEAD")
     reflog = next(head.log())
     return reflog.message
-
-
-def get_message(repo):
-    command = get_git_command()
-    if command is not None and command[:3] == "git":
-        return command
-    return get_reflog_message(repo)
 
 
 def main():
