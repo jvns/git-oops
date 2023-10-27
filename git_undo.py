@@ -17,9 +17,7 @@ def check_output(cmd, **kwargs):
     # else:
     #    print(f"running command: '{' '.join(cmd)}'")
     start = time.time()
-    result = (
-        subprocess.check_output(cmd, shell=is_shell, **kwargs).decode("utf-8").strip()
-    )
+    result = subprocess.check_output(cmd, shell=is_shell, **kwargs).decode("utf-8")
     elapsed = time.time() - start
     # print(f"Command took {elapsed:.3f} seconds: {cmd}")
     return result
