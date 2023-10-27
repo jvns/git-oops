@@ -693,12 +693,12 @@ def draw_diverged_diagram(repo, then, now, ancestor):
         right = now_commits[i]
 
         left_str = (
-            f"{symbol(left, then, now)}{short(left)} {left.message.strip()}"
+            f"{symbol(left, then, now)}{short(left)} {truncate_message(left.message)}"
             if left
             else " " * 44
         )
         right_str = (
-            f"{symbol(right, then, now)}{short(right)} {right.message.strip()}"
+            f"{symbol(right, then, now)}{short(right)} {truncate_message(right.message)}"
             if right
             else ""
         )
@@ -708,7 +708,7 @@ def draw_diverged_diagram(repo, then, now, ancestor):
     result.append("    ┬" + " " * 43 + "┬")
     result.append("    ┝" + "─" * 43 + "┘")
     result.append("    │")
-    result.append(f" {short(ancestor)} {ancestor.message.strip()}")
+    result.append(f" {short(ancestor)} {truncate_message(ancestor.message)}")
     return result
 
 
@@ -725,6 +725,14 @@ def draw_line_diagram(repo, then, now, ancestor):
         f"{symbol(commit, then, now)}{short(commit)} {commit.message.strip()}"
         for commit in history
     ]
+
+
+def truncate_message(message):
+    # truncate message to 34 chars max, with ellipsis
+    message = message.strip()
+    if len(message) > 34:
+        return message[:31] + "..."
+    return message
 
 
 def short(commit):
