@@ -721,8 +721,15 @@ def draw_line_diagram(repo, then, now, ancestor):
     else:
         raise Exception("Ancestor must be same as then or now")
 
+    # if there are more than 6 commits, truncate the middle
+    num_omitted = len(history) - 5
+    if len(history) > 6:
+        history = history[:3] + [None] + history[-2:]
+
     return [
         f"{symbol(commit, then, now)}{short(commit)} {commit.message.strip()}"
+        if commit
+        else f"    ... {num_omitted} commits omitted ..."
         for commit in history
     ]
 
