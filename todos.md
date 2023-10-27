@@ -16,6 +16,7 @@ problems:
 - [X] we don't update reflog when updating HEAD / other references
 - [ ] feature: add a "preview" command
 - [ ] feature: there's no way to uninstall
+- [ ] bug: if we run `git commit -a` (without -m) there's an "invalid process id" error
 
 usability:
 - [ ] snapshots in the middle of a rebase are confusing
