@@ -582,7 +582,7 @@ class CursesApp:
         win = curses.newwin(height, width, y, x)
         win.box()
         # Add the title to the box
-        win.addstr(0, (width - len(title)) // 2, title)
+        win.addstr(0, 3, title)
 
         # Add content to the box
         for idx, line in enumerate(content):
