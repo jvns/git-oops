@@ -164,7 +164,6 @@ class Snapshot:
 
     def format(self):
         # no newlines in message
-        assert "\n" not in self.message
         return "\n".join(
             [
                 f"FormatVersion: 1",
@@ -343,7 +342,6 @@ def record_snapshot(repo):
     if check_rebase(repo):
         return
     snapshot = Snapshot.record(repo)
-
     return snapshot.save(repo)
 
 
@@ -451,21 +449,10 @@ def check_rebase(repo):
 def format_changes(repo, changes, now, then):
     boxes = []
     then_head = resolve_head(then)
-    boxes.append(
-        (
-            "refs",
-            [
-                f"{ref}: " + compare(repo, old_target, new_target)
-                for ref, (old_target, new_target) in changes["refs"].items()
-            ],
+    for ref, (old_target, new_target) in changes["refs"].items():
+        boxes.append(
+            (f"{ref} changed", draw_ascii_diagram(repo, old_target, new_target))
         )
-    )
-    boxes.append(
-        (
-            "git log",
-            check_output(["git", "log", "--oneline", "-n", "3", then_head]).split("\n"),
-        )
-    )
 
     if changes["HEAD"]:
         then_target, now_target = changes["HEAD"]
@@ -676,6 +663,103 @@ class CursesApp:
         else:
             return False
         return True
+
+
+def get_commits_after_ancestor(repo, commit, ancestor, include=False):
+    commits = []
+    while commit and commit.id != ancestor.id:
+        commits.append(commit)
+        if len(commit.parent_ids) > 0:
+            commit = repo.get(commit.parent_ids[0])
+        else:
+            commit = None
+    if include:
+        commits.append(ancestor)
+    return commits
+
+
+def draw_ascii_diagram(repo, then_sha, now_sha):
+
+    then = repo.get(str(then_sha))
+    now = repo.get(str(now_sha))
+
+    assert then and now, "Invalid SHA"
+
+    # Find common ancestor
+    ancestor_sha = repo.merge_base(then.id, now.id)
+    ancestor = repo.get(ancestor_sha)
+    assert ancestor, "Couldn't get ancestor SHA"
+    if ancestor.id == then.id or ancestor.id == now.id:
+        return draw_line_diagram(repo, then, now, ancestor)
+    else:
+        return draw_diverged_diagram(repo, then, now, ancestor)
+
+
+def symbol(commit, then, now):
+    if commit == then:
+        return "➤"
+    elif commit == now:
+        return "★"
+    else:
+        return " "
+
+
+def draw_diverged_diagram(repo, then, now, ancestor):
+    then_commits = get_commits_after_ancestor(repo, then, ancestor)
+    now_commits = get_commits_after_ancestor(repo, now, ancestor)
+
+    max_len = max(len(then_commits), len(now_commits))
+
+    # normalize lengths to pad out the shorter list with `None` at the beginning
+    then_commits = normalize_lengths(then_commits, max_len)
+    now_commits = normalize_lengths(now_commits, max_len)
+
+    result = []
+    for i in range(max_len):
+        left = then_commits[i]
+        right = now_commits[i]
+
+        left_str = (
+            f"{symbol(left, then, now)}{short(left)} {left.message.strip()}"
+            if left
+            else " " * 44
+        )
+        right_str = (
+            f"{symbol(right, then, now)}{short(right)} {right.message.strip()}"
+            if right
+            else ""
+        )
+
+        result.append(f"{left_str.ljust(44)} {right_str.ljust(23)}")
+
+    result.append("    ┬" + " " * 43 + "┬")
+    result.append("    ┝" + "─" * 43 + "┘")
+    result.append("    │")
+    result.append(f" {short(ancestor)} {ancestor.message.strip()}")
+    return result
+
+
+def draw_line_diagram(repo, then, now, ancestor):
+    # draw a simple version in the case that the ancestor is same as then or now
+    if then.id == ancestor.id:
+        history = get_commits_after_ancestor(repo, now, then, include=True)
+    elif now.id == ancestor.id:
+        history = get_commits_after_ancestor(repo, then, now, include=True)
+    else:
+        raise Exception("Ancestor must be same as then or now")
+
+    return [
+        f"{symbol(commit, then, now)}{short(commit)} {commit.message.strip()}"
+        for commit in history
+    ]
+
+
+def short(commit):
+    return str(commit.id)[:6]
+
+
+def normalize_lengths(l, max_len):
+    return [None] * (max_len - len(l)) + l
 
 
 if __name__ == "__main__":
