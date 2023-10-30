@@ -56,7 +56,9 @@ def add_undo_entry(repo, tree, message, index_commit, workdir_commit):
     # > and it does not have a reflog.
     # so we need to create the reflog explicitly
 
-    reflog_file = repo.path + "/logs/" + UNDO_REF
+    reflog_file = os.path.join(repo.path, "logs", UNDO_REF)
+    # create dirs if they're missing
+    os.makedirs(os.path.join(repo.path, "logs/refs"), exist_ok=True)
 
     # create empty file if it doesn't exist
     if not os.path.exists(reflog_file):

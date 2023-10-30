@@ -18,31 +18,31 @@ def make_git_commands():
     ]
 
 
+repo = None
+
+
 def setup():
-    # make git dir
-    tmpdir = tempfile.TemporaryDirectory(dir="/tmp")
-    repo_path = tmpdir.name
-    subprocess.check_call(["git", "init", repo_path])
-    repo = pygit2.Repository(repo_path)
+    global repo
+    if not repo:
+        repo_path = tempfile.mkdtemp()
+        subprocess.check_call(["git", "init", repo_path])
+        repo = pygit2.Repository(repo_path)
 
-    # install hooks
-    path = os.path.dirname(os.path.realpath(__file__)) + "/git_undo.py"
-    git_undo.install_hooks(repo, path)
+        # install hooks
+        path = "python3 " + os.path.dirname(os.path.realpath(__file__)) + "/git_undo.py"
+        git_undo.install_hooks(repo, path)
 
-    return repo, tmpdir
+    return repo
 
 
 def test_basic_snapshot():
-    repo, _tmpdir = setup()
+    repo = setup()
     subprocess.check_call(
         ["git", "commit", "--allow-empty", "-am", "test"], cwd=repo.workdir
     )
-    commit_id = git_undo.record_snapshot(repo)
-    snapshot = Snapshot.load(repo, commit_id)
-    assert snapshot.head == "refs/heads/main"
     all_snapshots = Snapshot.load_all(repo)
-    # not sure 3 is right
-    assert len(all_snapshots) == 3
+    assert len(all_snapshots) == 2
+    assert all_snapshots[0].head == "refs/heads/main"
 
 
 # todo: test that restoring most recent snapshot is a no-op
