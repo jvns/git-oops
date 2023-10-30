@@ -14,12 +14,12 @@ problems:
 - [X] bug: changes are both staged and unstaged at the same time when making a commit (solution: use `index.lock` instead of `index`)
 - [X] commit is like 4 operations, reset is 3 operations (idea: implement a wrapper?)
 - [X] we don't update reflog when updating HEAD / other references
-- [ ] feature: add a "preview" command
-- [ ] feature: there's no way to uninstall
-- [ ] bug: if we run `git commit -a` (without -m) there's an "invalid process id" error
+- [X] snapshots in the middle of a rebase are confusing (removed them)
+- [ ] feature: add a "preview" command to show what it would be like to restore a snapshot maybe?
+- [ ] feature: there's no way to uninstall the hooks
+- [ ] bug: `git undo` on a reset --hard HEAD^^^ actually doesn't do the right thing so that sucks
 
 usability:
-- [ ] snapshots in the middle of a rebase are confusing
 
 performance:
 - [ ] tests are really slow :(
@@ -29,7 +29,6 @@ performance:
 - [ ] possibly use GIT_DIR environment variable to get git dir when in a hook for better accuracy
 - [ ] bug: `.git/hooks` might not be accurate to get hooks dir, use libgit2 instead
 - [ ] bug: it overwrites all your git hooks
-- [ ] 
 
 possible problems
 - [ ] the thing where index / workdir are commits is a little weird (idea: look at jj's internals)
