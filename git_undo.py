@@ -429,16 +429,15 @@ def format_status(then, now):
     unstaged_diff = check_output(
         ["git", "diff", "--stat", then.workdir_commit, then.index_commit]
     )
-    if len(staged_diff.strip()) == 0 and len(unstaged_diff.strip()) == 0:
-        return ("git status", [])
     result = []
     if len(staged_diff.strip()) > 0:
         result.append("Staged changes:")
-        result.append(staged_diff)
+        result += staged_diff.rstrip("\n").split("\n")
 
     if len(unstaged_diff.strip()) > 0:
         result.append("Unstaged changes:")
-        result.append(unstaged_diff)
+        result += unstaged_diff.rstrip("\n").split("\n")
+    return ("git status", result)
 
 
 def check_rebase(repo):
@@ -467,9 +466,9 @@ def format_changes(repo, changes, now, then):
         boxes.append(
             (
                 "diff from current workdir",
-                check_output(["git", "diff", "--stat", new_workdir, old_workdir]).split(
-                    "\n"
-                ),
+                check_output(["git", "diff", "--stat", new_workdir, old_workdir])
+                .rstrip("\n")
+                .split("\n"),
             )
         )
 
