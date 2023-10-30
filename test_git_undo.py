@@ -18,21 +18,19 @@ def make_git_commands():
     ]
 
 
-repo = None
-
-
 def setup():
-    global repo
-    if not repo:
-        repo_path = tempfile.mkdtemp()
-        subprocess.check_call(["git", "init", repo_path])
-        repo = pygit2.Repository(repo_path)
+    repo_path = tempfile.mkdtemp()
+    subprocess.check_call(["git", "init", repo_path])
+    repo = pygit2.Repository(repo_path)
 
-        # install hooks
-        path = "python3 " + os.path.dirname(os.path.realpath(__file__)) + "/git_undo.py"
-        git_undo.install_hooks(repo, path)
-
+    # install hooks
+    path = "python3 " + os.path.dirname(os.path.realpath(__file__)) + "/git_undo.py"
+    git_undo.install_hooks(repo, path)
     return repo
+
+
+def delete(repo):
+    subprocess.check_call(["rm", "-rf", repo.workdir])
 
 
 def test_basic_snapshot():
@@ -41,8 +39,11 @@ def test_basic_snapshot():
         ["git", "commit", "--allow-empty", "-am", "test"], cwd=repo.workdir
     )
     all_snapshots = Snapshot.load_all(repo)
+    # um not sure if I agree with this? why 2 snapshots?
     assert len(all_snapshots) == 2
     assert all_snapshots[0].head == "refs/heads/main"
+
+    delete(repo)
 
 
 # todo: test that restoring most recent snapshot is a no-op
