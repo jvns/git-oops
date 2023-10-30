@@ -247,18 +247,22 @@ class Snapshot:
         )
 
     def restore(self, repo):
-        # restore workdir and index
-        check_output(
-            [
-                "git",
-                "-c",
-                "core.hooksPath=/dev/null",
-                "restore",
-                "--source",
-                self.workdir_commit,
-                ".",
-            ]
-        )
+        try:
+            # restore workdir and index
+            check_output(
+                [
+                    "git",
+                    "-c",
+                    "core.hooksPath=/dev/null",
+                    "restore",
+                    "--source",
+                    self.workdir_commit,
+                    ".",
+                ]
+            )
+        except subprocess.CalledProcessError as e:
+            print("Failed to restore workdir, can't restore snapshot")
+            return
         check_output(
             [
                 "git",
@@ -341,8 +345,15 @@ def record_snapshot(repo):
 
 def restore_snapshot(repo, commit_id):
     snapshot = Snapshot.load(repo, commit_id)
-    # changes = calculate_diff(repo, snapshot)
-    # print(format_changes(repo, changes))
+    return snapshot.restore(repo)
+
+
+def undo(repo):
+    last_commit = read_branch(repo, UNDO_REF)
+    if not last_commit:
+        print("No snapshots to undo")
+        return
+    restore_snapshot(repo, last_commit)
 
 
 def calculate_diff(now, then):
@@ -429,8 +440,6 @@ def format_status(then, now):
         result.append("Unstaged changes:")
         result.append(unstaged_diff)
 
-    return ("git status", ("\n".join(result)).split("\n"))
-
 
 def check_rebase(repo):
     if os.path.exists(os.path.join(repo.path, "rebase-apply")):
@@ -500,6 +509,7 @@ def parse_args():
 
     # Create a subparser for the 'undo' subcommand
     undo_parser = record_parser.add_parser("undo", help="Undo the last snapshot")
+    undo_parser = record_parser.add_parser("history", help="Display snapshot history")
     init_parser = record_parser.add_parser("init", help="Install hooks")
 
     restore_parser = record_parser.add_parser(
@@ -514,8 +524,10 @@ def parse_args():
 
     if args.subcommand == "record":
         record_snapshot(repo)
-    elif args.subcommand == "undo":
+    elif args.subcommand == "history":
         CursesApp(repo)
+    elif args.subcommand == "undo":
+        undo(repo)
     elif args.subcommand == "init":
         install_hooks(repo)
     elif args.subcommand == "restore":
