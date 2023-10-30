@@ -349,11 +349,15 @@ def restore_snapshot(repo, commit_id):
 
 
 def undo(repo):
-    last_commit = read_branch(repo, UNDO_REF)
-    if not last_commit:
-        print("No snapshots to undo")
-        return
-    restore_snapshot(repo, last_commit)
+    now = Snapshot.record(repo)
+    now.save(repo)
+    for commit in repo.references[UNDO_REF].log():
+        then = Snapshot.load(repo, commit.oid_new)
+        changes = calculate_diff(now, then)
+        if changes["refs"] or changes["HEAD"]:
+            print(f"Restoring snapshot {then.id}")
+            restore_snapshot(repo, then.id)
+            return
 
 
 def calculate_diff(now, then):
