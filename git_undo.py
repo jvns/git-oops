@@ -12,6 +12,18 @@ import pygit2
 UNDO_REF = "refs/git-undo"
 
 
+def check_call(cmd, **kwargs):
+    is_shell = type(cmd) is str
+    if is_shell:
+        print(f"Running command: '{cmd}'")
+    else:
+        print(f"running command: '{' '.join(cmd)}'")
+    start = time.time()
+    subprocess.check_call(cmd, shell=is_shell, **kwargs)
+    elapsed = time.time() - start
+    # print(f"Command took {elapsed:.3f} seconds: {cmd}")
+
+
 def check_output(cmd, **kwargs):
     is_shell = type(cmd) is str
     # if is_shell:
@@ -251,23 +263,19 @@ class Snapshot:
         )
 
     def restore(self, repo):
-        try:
-            # restore workdir and index
-            check_output(
-                [
-                    "git",
-                    "-c",
-                    "core.hooksPath=/dev/null",
-                    "restore",
-                    "--source",
-                    self.workdir_commit,
-                    ".",
-                ]
-            )
-        except subprocess.CalledProcessError as e:
-            print("Failed to restore workdir, can't restore snapshot")
-            return
-        check_output(
+        check_call(
+            [
+                "git",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "restore",
+                "--source",
+                self.workdir_commit,
+                ".",
+            ],
+            cwd=repo.workdir,
+        )
+        check_call(
             [
                 "git",
                 "-c",
@@ -277,7 +285,8 @@ class Snapshot:
                 self.index_commit,
                 "--staged",
                 ".",
-            ]
+            ],
+            cwd=repo.workdir,
         )
         repo.references.create("HEAD", self.head, force=True)
         for ref, target in self.refs:

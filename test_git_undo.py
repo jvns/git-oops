@@ -1,4 +1,5 @@
 from git_undo import Snapshot
+import time
 import subprocess
 import string
 import os
@@ -44,6 +45,31 @@ def test_basic_snapshot():
     assert all_snapshots[0].head == "refs/heads/main"
 
     delete(repo)
+
+
+def add_file(repo, filename, contents):
+    with open(os.path.join(repo.workdir, filename), "w") as f:
+        f.write(contents)
+    subprocess.check_call(["git", "add", filename], cwd=repo.workdir)
+
+
+def test_accurate_restore():
+    repo = setup()
+    subprocess.check_call(
+        ["git", "commit", "--allow-empty", "-am", "initial commit"], cwd=repo.workdir
+    )
+    add_file(repo, "a.txt", "aaaaa")
+    subprocess.check_call(["git", "commit", "-m", "a.txt"], cwd=repo.workdir)
+    # wait a moment
+    snapshot_id = Snapshot.load_all(repo)[0].id
+
+    add_file(repo, "b.txt", "bbbbb")
+    subprocess.check_call(["git", "commit", "-m", "b.txt"], cwd=repo.workdir)
+
+    git_undo.restore_snapshot(repo, snapshot_id)
+
+    # make sure that "b.txt" is gone
+    assert not os.path.exists(os.path.join(repo.workdir, "b.txt")), "b.txt still exists"
 
 
 # todo: test that restoring most recent snapshot is a no-op
