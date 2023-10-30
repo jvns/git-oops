@@ -297,7 +297,7 @@ def read_branch(repo, branch):
         return None
 
 
-def install_hooks(repo, path="git_undo.py"):
+def install_hooks(repo, path="git-oops"):
     # List of Git hooks to install
     hooks_to_install = [
         "post-applypatch",
@@ -323,7 +323,7 @@ DIR=$(git rev-parse --show-toplevel)
 cd $DIR || exit
 # check if $1 = "committed"
 if [ "$1" = "committed" ]; then
-    python3 {path} record || echo "error recording snapshot in {hook}"
+    {path} record || echo "error recording snapshot in {hook}"
 fi
         """
                 )
@@ -332,7 +332,7 @@ fi
                     f"""#!/bin/sh
     DIR=$(git rev-parse --show-toplevel)
     cd $DIR || exit
-    python3 {path} record || echo "error recording snapshot in {hook}"
+    {path} record || echo "error recording snapshot in {hook}"
     """
                 )
         os.chmod(hook_path, 0o755)
@@ -513,7 +513,9 @@ def parse_args():
     record_parser.add_parser("record", help="Record a new snapshot")
 
     # Create a subparser for the 'undo' subcommand
-    undo_parser = record_parser.add_parser("undo", help="Undo the last snapshot")
+    undo_parser = record_parser.add_parser(
+        "undo", help="Undo the last snapshot (todo: this is a lie)"
+    )
     undo_parser = record_parser.add_parser("history", help="Display snapshot history")
     init_parser = record_parser.add_parser("init", help="Install hooks")
 
@@ -541,7 +543,8 @@ def parse_args():
         else:
             print("Snapshot ID is required for the 'restore' subcommand.")
     else:
-        print("Use 'record' or 'undo' as subcommands.")
+        # print help text
+        parser.print_help()
 
 
 def get_reflog_message(repo):
