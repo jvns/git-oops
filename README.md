@@ -3,12 +3,11 @@
 # git oops
 
 Have you ever made a mistake with git and wished you could just type `git undo`
-instead of having to remember whatever weird incantation?
-
+instead of having to remember a weird incantation? With `git oops`, you can!
 
 ```
 $ git rebase -i main
-$ git undo
+$ git oops undo
 ```
 
 ## installation
@@ -16,6 +15,7 @@ $ git undo
 * Put the `git-oops` script into your PATH somewhere
 * Install `pygit2` globally on your system
 * Run `git oops init` in a repository to install the hooks
+* If you'd like, alias `git undo` to `git oops undo`
 
 Now `git-oops` will automatically take a snapshot any time you do anything in
 your Git repo.
@@ -38,8 +38,8 @@ when `git oops record` takes a snapshot, here's what it does:
 2. **get HEAD**
 3. **get all your branches and tags**
 4. **check for uniqueness**: If the snapshot is exactly the same as the previous snapshot, it'll exit
-5. **record everything in a commit**. Here's an example (from this repository):
-   ```
+5. **record everything in a commit**. Here's an example commit (from this repository). The metadata is stored in the commit message.
+```
 FormatVersion: 1
 HEAD: refs/heads/main
 Index: 20568a3a49feda34ad6aaa3aff7d7a578a8dee0d
@@ -60,8 +60,7 @@ More details about other commands:
   * retrieves COMMIT_ID 
   * runs `git -c core.hooksPath=/dev/null restore --source WORKDIR_COMMIT`
   * runs `git -c core.hooksPath=/dev/null restore --staged --source INDEX_COMMIT`
-  * updates all the references from the snapshot. It will not delete any references.
-  * 
+  * updates all the branches and tags from the snapshot. It will not delete any branches or tags.
 * `git oops history`:
   * runs the equivalent of `git reflog git-oops` to get a list of histories
   * gives you an interactive UI to choose one to restore
