@@ -60,7 +60,7 @@ More details about other commands:
   * retrieves COMMIT_ID 
   * runs `git -c core.hooksPath=/dev/null restore --source WORKDIR_COMMIT`
   * runs `git -c core.hooksPath=/dev/null restore --staged --source INDEX_COMMIT`
-  * updates all the branches and tags from the snapshot. It will not delete any branches or tags.
+  * updates all the branches and tags from the snapshot. It will not delete any branches or tags, to avoid deleting their reflog.
 * `git oops history`:
   * runs the equivalent of `git reflog git-oops` to get a list of histories
   * gives you an interactive UI to choose one to restore
@@ -75,5 +75,5 @@ More details about other commands:
 
 People who helped: Kamal Marhubi, Marie Flanagan
 
-The undo functionality is inspired by GitUp, jj, and git-branchless.
+Inspired by GitUp, jj, and git-branchless.
 
