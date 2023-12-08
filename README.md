@@ -16,11 +16,14 @@ The goal is to experiment and see if it's possible to build a standalone `undo`
 feature for git, in the style of the undo features in [GitUp](https://gitup.co/),
 [jj](https://github.com/martinvonz/jj), and [git-branchless](https://github.com/arxanas/git-branchless). 
 
+You can think of it as "version control for your version control" -- it takes
+snapshots of your repository and makes those into git commits that you can
+restore later to go back to a previous state.
 
 This is really just a prototype -- I think the idea of a standalone `undo`
 feature for git is cool and I'm mostly putting this out there in case it can
-serve as inspiration for a better tool that actually works reliably. There's a long list
-of problems at the end of this README and it's not remotely ready for
+serve as inspiration for a better tool that actually works reliably. There's a
+long list of problems at the end of this README and it's not remotely ready for
 production use.
 
 ## installation
