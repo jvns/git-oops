@@ -9,7 +9,7 @@ import curses
 
 import pygit2
 
-UNDO_REF = "refs/git-undo"
+UNDO_REF = "refs/git-oops"
 
 
 def check_call(cmd, **kwargs):
@@ -193,7 +193,6 @@ class Snapshot:
         return self.format()
 
     def save(self, repo):
-
         message = self.format()
 
         last_commit = read_branch(repo, UNDO_REF)
@@ -565,10 +564,10 @@ def get_reflog_message(repo):
 
 
 def main():
-    start = time.time()
+    # start = time.time()
     parse_args()
-    elapsed = time.time() - start
-    print(f"Time taken: {elapsed:.2f}s")
+    # elapsed = time.time() - start
+    # print(f"Time taken: {elapsed:.2f}s")
 
 
 class CursesApp:
@@ -639,6 +638,14 @@ class CursesApp:
         for title, content in boxes:
             win, y_next = self.draw_box(y_next, width=90, title=title, content=content)
             self.windows.append(win)
+        # Put "Press r to restore" at the bottom of the screen
+        # Put "Press q to quit" at the bottom of the screen
+        self.stdscr.addstr(
+            curses.LINES - 1,
+            1,
+            "Press r to restore, q to quit, arrow keys to navigate",
+            curses.color_pair(1),
+        )
         # draw all the windows
         self.stdscr.refresh()
         for win in self.windows:
@@ -664,6 +671,13 @@ class CursesApp:
             self.current_item -= 1
         elif key == curses.KEY_RESIZE:
             pass
+        # restore on "r"
+        elif key == ord("r"):
+            self.items[self.current_item].restore(self.repo)
+            # exit ncurses and print message
+            curses.endwin()
+            print(f"Restored snapshot {self.items[self.current_item].id}")
+            exit()
         else:
             return False
         return True
@@ -683,7 +697,6 @@ def get_commits_after_ancestor(repo, commit, ancestor, include=False):
 
 
 def draw_ascii_diagram(repo, then_sha, now_sha):
-
     then = repo.get(str(then_sha))
     now = repo.get(str(now_sha))
 
