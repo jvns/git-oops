@@ -1,20 +1,31 @@
-**EXPERIMENTAL SOFTWARE, MAY DO DESTRUCTIVE THINGS TO YOUR GIT REPOSITORY. SOME OF THE FEATURES DESCRIBED IN THIS README DO NOT WORK PROPERLY. INIT WILL PROBABLY DESTROY YOUR GIT HOOKS. REALLY DO NOT USE THIS ON A REPO YOU CARE ABOUT.**
+**EXPERIMENTAL SOFTWARE, MAY DO DESTRUCTIVE THINGS TO YOUR GIT REPOSITORY. PROBABLY DO NOT USE THIS ON A REPO YOU CARE ABOUT.**
 
 # git oops
 
 Have you ever made a mistake with git and wished you could just type `git undo`
-instead of having to remember a weird incantation? With `git oops`, you can!
+instead of having to remember a weird incantation? That's the idea behind `git oops`.
 
 ```
 $ git rebase -i main
+# do something bad here
 $ git oops undo
+# fixed!
 ```
+
+The goal is to experiment and see if it's possible to build a standalone `undo`
+feature for git, in the style of the undo features in [GitUp](https://gitup.co/),
+[jj](https://github.com/martinvonz/jj), and [git-branchless](https://github.com/arxanas/git-branchless). 
+
+
+This is really just a prototype -- I think the idea of a standalone `undo`
+feature for git is cool. There's a long list of problems at the end of this
+README and it's not remotely ready for production use.
 
 ## installation
 
 * Put the `git-oops` script into your PATH somewhere
 * Install `pygit2` globally on your system
-* Run `git oops init` in a repository to install the hooks
+* Run `git oops init` in a repository to install the hooks (danger! will overwrite your existing hooks!)
 * If you'd like, alias `git undo` to `git oops undo`
 
 Now `git-oops` will automatically take a snapshot any time you do anything in
@@ -28,7 +39,7 @@ your Git repo.
 ## advanced usage
 
 * `git oops record` manually records a snapshot. 
-* `git oops restore COMMIT_ID` restores a specific snapshot
+* `git oops restore SNAPSHOT_ID` restores a specific snapshot
 
 ## how it works
 
@@ -70,10 +81,46 @@ More details about other commands:
 * `git oops init` installs the following hooks: post-applypatch, post-checkout, pre-commit, post-commit, post-merge, post-rewrite, post-index-change, reference-transaction
   * when the hooks run, it runs `git oops record`
 
+### idea: make it easier to share broken repo states
+
+You could imagine using this to share repository snapshots with your coworkers, like
+
+you run:
+
+```
+$ git oops record
+23823fe
+$ git branch my-broken-snapshot 23823fe
+$ git push my-broken-snapshot
+```
+
+they run:
+
+```
+# make a fresh clone
+$ git clone your-repo
+$ git fetch origin my-broken-snapshot
+$ git oops restore 23823fe
+```
+
+now they can see what weird state you ended up in and help you fix it!
+
+I think this doesn't quite work as is though.
+
+### problems
+
+Current problems include:
+
+* `git oops init` overwrites your git hooks and doesn't give you any way to uninstall them. You need to uninstall it manually
+* It doesn't really support multiple undos
+* there's no preview for what it's going to do so it's kind of scary
+* makes all of your commits and rebases slower, in some cases MUCH slower. Maybe Python is not a good choice of language? Not sure.
+* it's mostly untested so I don't trust it
+* probably a million other things
 
 ## acknowledgements
 
-People who helped: Kamal Marhubi, Marie Flanagan
+People who helped: Kamal Marhubi, Dave Vasilevsky, Marie Flanagan, David Turner
 
-Inspired by GitUp, jj, and git-branchless.
-
+Inspired by [GitUp](https://gitup.co/), [jj](https://github.com/martinvonz/jj), and [git-branchless](https://github.com/arxanas/git-branchless), if you want an
+undo feature to actually use one of those tools is a better bet.
